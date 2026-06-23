@@ -8,6 +8,23 @@ use crate::app::{App, GroupKey, ListDueBucket, Mode, View};
 use crate::theme::Theme;
 use crate::ui::{header, keep_cursor_visible, task_row};
 
+/// Columns of indentation per directory level in tree mode.
+const INDENT: usize = 2;
+
+/// A directory header line for tree mode: `<indent><name>/` in the accent
+/// colour. Lifetime-free so it can be pushed into the borrowed `lines` vec.
+fn area_header<'a>(theme: &Theme, name: &str, indent: usize) -> Line<'a> {
+    Line::from(vec![
+        Span::raw(" ".repeat(indent)),
+        Span::styled(
+            format!("{name}/"),
+            Style::default()
+                .fg(theme.accent)
+                .add_modifier(Modifier::BOLD),
+        ),
+    ])
+}
+
 pub fn render(frame: &mut Frame, area: Rect, app: &App) {
     let theme = app.theme();
     super::fill_bg(frame, area, Style::default().bg(theme.bg));
@@ -41,12 +58,8 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
 
     let visible = app.visible_indices();
     let groups = app.visible_groups();
-    // Source-area labels per visible task (tree mode only; all `None` in
-    // single-file mode). Held in a vec so the row builder can borrow them.
-    let area_labels: Vec<Option<String>> = visible
-        .iter()
-        .map(|&abs| app.task_area_label(abs))
-        .collect();
+    let tree = app.is_tree_mode();
+    let width = body_area.width as usize;
     let mut lines: Vec<Line> = Vec::new();
     let mut cursor_line: Option<usize> = None;
 
@@ -61,17 +74,44 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
         let last = visible.len().saturating_sub(1);
         let mut last_group: Option<&GroupKey> = None;
 
+        // Tree mode groups tasks under a hierarchy of directory headers: the
+        // scan-root folder is the top header and each subfolder nests under it,
+        // one indent level deeper. (Always expanded.)
+        if tree {
+            lines.push(area_header(theme, &app.tree_root_label(), 0));
+        }
+        let mut prev_area: Vec<String> = Vec::new();
+
         for (i, (&abs, gk)) in visible.iter().zip(groups.iter()).enumerate() {
-            // Emit a section header on group transitions. `GroupKey::None`
-            // means the active sort is `Sort::File`; we never render a header
-            // for it, so the layout is identical to the pre-grouping version.
-            if !matches!(gk, GroupKey::None) && last_group != Some(gk) {
-                if !lines.is_empty() {
-                    push_blanks(&mut lines, blank);
+            let indent = if tree {
+                let comps = app.task_area_components(abs);
+                // Emit a header for each directory level new since the previous
+                // task. Depth `d` sits under the root header, so it indents by
+                // `(d + 1) * INDENT`.
+                let common = comps
+                    .iter()
+                    .zip(prev_area.iter())
+                    .take_while(|(a, b)| a == b)
+                    .count();
+                for (d, name) in comps.iter().enumerate().skip(common) {
+                    lines.push(area_header(theme, name, (d + 1) * INDENT));
                 }
-                lines.push(group_header(theme, gk, counts.lookup(gk)));
-                last_group = Some(gk);
-            }
+                let depth = comps.len();
+                prev_area = comps;
+                (depth + 1) * INDENT
+            } else {
+                // Single-file: priority/due section headers on transitions.
+                // `GroupKey::None` (Sort::File) renders no header, so the layout
+                // is identical to the pre-grouping version.
+                if !matches!(gk, GroupKey::None) && last_group != Some(gk) {
+                    if !lines.is_empty() {
+                        push_blanks(&mut lines, blank);
+                    }
+                    lines.push(group_header(theme, gk, counts.lookup(gk)));
+                    last_group = Some(gk);
+                }
+                0
+            };
 
             let task = &app.tasks()[abs];
             let opts = task_row::RowOpts {
@@ -88,18 +128,21 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
                 },
                 today: app.today(),
                 hidden_keys: &app.prefs.hidden_keys,
-                area: area_labels[i].as_deref(),
+                area: None,
             };
             if i == app.cursor {
                 cursor_line = Some(lines.len());
             }
-            lines.extend(task_row::build_wrapped_lines(
-                task,
-                opts,
-                theme,
-                body_area.width as usize,
-            ));
-            if matches!(gk, GroupKey::None) && i != last {
+            let avail = width.saturating_sub(indent).max(8);
+            let mut rows = task_row::build_wrapped_lines(task, opts, theme, avail);
+            if indent > 0 {
+                let pad = " ".repeat(indent);
+                for row in &mut rows {
+                    row.spans.insert(0, Span::raw(pad.clone()));
+                }
+            }
+            lines.extend(rows);
+            if !tree && matches!(gk, GroupKey::None) && i != last {
                 for _ in 0..blank {
                     lines.push(Line::raw(""));
                 }

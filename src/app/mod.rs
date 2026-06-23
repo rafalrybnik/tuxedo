@@ -201,19 +201,31 @@ impl App {
         self.recompute_visible();
     }
 
-    /// In tree mode, the display label of the task's source area (directory
-    /// relative to the scan root; "." for the root file). `None` in single-file
-    /// mode, so renderers leave the row unchanged.
-    pub(crate) fn task_area_label(&self, abs: usize) -> Option<String> {
-        if self.store.is_single_file() {
-            return None;
-        }
-        let area = self.store.area(abs);
-        Some(if area.as_os_str().is_empty() {
-            ".".to_string()
-        } else {
-            area.display().to_string()
-        })
+    /// True when showing an aggregated directory tree rather than a single
+    /// file. Drives the directory-header grouping in the list view.
+    pub(crate) fn is_tree_mode(&self) -> bool {
+        !self.store.is_single_file()
+    }
+
+    /// The scan-root folder name, rendered as the top header in tree mode.
+    pub(crate) fn tree_root_label(&self) -> String {
+        let root = self.store.root();
+        root.file_name()
+            .map(|s| s.to_string_lossy().into_owned())
+            .unwrap_or_else(|| root.display().to_string())
+    }
+
+    /// Source area of the task at `abs`, split into directory components
+    /// relative to the scan root. Empty for a task in the root `todo.md`.
+    pub(crate) fn task_area_components(&self, abs: usize) -> Vec<String> {
+        self.store
+            .area(abs)
+            .components()
+            .filter_map(|c| match c {
+                std::path::Component::Normal(s) => Some(s.to_string_lossy().into_owned()),
+                _ => None,
+            })
+            .collect()
     }
 
     /// Idempotent: bind the capture server on first call, then store

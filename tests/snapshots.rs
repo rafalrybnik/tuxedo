@@ -515,24 +515,38 @@ fn list_scrolls_to_keep_cursor_visible_when_below_fold() {
 }
 
 #[test]
-fn tree_mode_aggregates_and_tags_source_area() {
+fn tree_mode_groups_tasks_under_indented_directory_headers() {
     // Real files on disk: App::new_tree scans them.
     let root = std::env::temp_dir().join(format!("tuxemdo-treeview-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&root);
-    std::fs::create_dir_all(root.join("zone")).expect("mk zone");
+    std::fs::create_dir_all(root.join("projects/web")).expect("mk dirs");
     std::fs::write(root.join("todo.md"), "- [ ] top task +infra\n").expect("root todo");
-    std::fs::write(root.join("zone/todo.md"), "- [ ] ship it +web\n").expect("zone todo");
+    std::fs::write(root.join("projects/web/todo.md"), "- [ ] ship it +api\n").expect("web todo");
 
     let mut app = App::new_tree(root.clone(), "2026-05-06".to_string(), Config::default())
         .expect("open tree");
     app.prefs.density = Density::Compact;
     let text = buffer_to_text(&render(&app));
 
-    // Tasks from both files are aggregated into one view...
+    // Tasks from both files are aggregated into one view.
     assert!(text.contains("top task"), "root task missing:\n{text}");
     assert!(text.contains("ship it"), "nested task missing:\n{text}");
-    // ...and the nested task carries its source area as a dim tag.
-    assert!(text.contains("zone"), "source-area tag missing:\n{text}");
+
+    // Directory headers nest: the subfolder header sits one indent level
+    // deeper than its parent. Both labels are unique in the buffer, and every
+    // body row shares the same fixed left offset from the side panels, so
+    // comparing the column where each label starts is a sound indent check.
+    let col_of = |needle: &str| -> usize {
+        let line = text
+            .lines()
+            .find(|l| l.contains(needle))
+            .unwrap_or_else(|| panic!("no line contains {needle:?}:\n{text}"));
+        line.find(needle).expect("contains => find")
+    };
+    assert!(
+        col_of("projects/") < col_of("web/"),
+        "subfolder header should indent deeper than its parent:\n{text}"
+    );
 
     let _ = std::fs::remove_dir_all(&root);
 }
