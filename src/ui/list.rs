@@ -41,6 +41,10 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
 
     let visible = app.visible_indices();
     let groups = app.visible_groups();
+    // Source-area labels per visible task (tree mode only; all `None` in
+    // single-file mode). Held in a vec so the row builder can borrow them.
+    let area_labels: Vec<Option<String>> =
+        visible.iter().map(|&abs| app.task_area_label(abs)).collect();
     let mut lines: Vec<Line> = Vec::new();
     let mut cursor_line: Option<usize> = None;
 
@@ -82,6 +86,7 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
                 },
                 today: app.today(),
                 hidden_keys: &app.prefs.hidden_keys,
+                area: area_labels[i].as_deref(),
             };
             if i == app.cursor {
                 cursor_line = Some(lines.len());

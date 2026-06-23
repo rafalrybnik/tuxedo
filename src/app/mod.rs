@@ -201,6 +201,21 @@ impl App {
         self.recompute_visible();
     }
 
+    /// In tree mode, the display label of the task's source area (directory
+    /// relative to the scan root; "." for the root file). `None` in single-file
+    /// mode, so renderers leave the row unchanged.
+    pub(crate) fn task_area_label(&self, abs: usize) -> Option<String> {
+        if self.store.is_single_file() {
+            return None;
+        }
+        let area = self.store.area(abs);
+        Some(if area.as_os_str().is_empty() {
+            ".".to_string()
+        } else {
+            area.display().to_string()
+        })
+    }
+
     /// Idempotent: bind the capture server on first call, then store
     /// the [`ShareInfo`] so subsequent calls just re-show the overlay.
     ///

@@ -19,6 +19,10 @@ pub struct RowOpts<'a> {
     /// rendered body. Empty (the common case) means render everything,
     /// byte-for-byte as before.
     pub hidden_keys: &'a [String],
+    /// In tree mode, the task's source area (directory relative to the scan
+    /// root) rendered as a dim trailing tag. `None` in single-file mode, where
+    /// the row is byte-for-byte identical to before.
+    pub area: Option<&'a str>,
 }
 
 pub fn build_line<'a>(task: &'a Task, opts: RowOpts<'a>, theme: &Theme) -> Line<'a> {
@@ -125,6 +129,12 @@ pub fn build_line<'a>(task: &'a Task, opts: RowOpts<'a>, theme: &Theme) -> Line<
         );
         emitted_body_token = true;
         rest = &rest[tok_end..];
+    }
+    if let Some(area) = opts.area {
+        spans.push(Span::styled(
+            format!("  {area}"),
+            Style::default().fg(theme.dim),
+        ));
     }
     let line_style = if opts.cursor {
         Style::default().bg(theme.cursor)
@@ -376,6 +386,7 @@ mod tests {
             match_term: Some("a"),
             today: "2026-05-06",
             hidden_keys: &[],
+            area: None,
         };
         // Build must not panic; we don't assert on the rendered spans.
         let _ = build_line(&task, opts, &MUTED);
@@ -397,6 +408,7 @@ mod tests {
             match_term: Some("cade"),
             today: "2026-05-06",
             hidden_keys: &[],
+            area: None,
         };
         let line = build_line(&task, opts, &MUTED);
         let highlight_bg = MUTED.matched;
@@ -425,6 +437,7 @@ mod tests {
             match_term: None,
             today: "2026-05-06",
             hidden_keys: hidden,
+            area: None,
         };
         let line = build_line(&task, opts, &MUTED);
         line.spans
@@ -492,6 +505,7 @@ mod tests {
             match_term: None,
             today: "2026-05-06",
             hidden_keys: &[],
+            area: None,
         };
         let line = build_line(&task, opts, &MUTED);
         let url_span = line
@@ -523,6 +537,7 @@ mod tests {
             match_term: None,
             today: "2026-05-06",
             hidden_keys: &[],
+            area: None,
         };
         let line = build_line(&task, opts, &MUTED);
         let url_span = line
