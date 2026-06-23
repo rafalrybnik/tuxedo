@@ -11,6 +11,7 @@ mod archive;
 mod external;
 mod history;
 mod mutations;
+mod tree;
 
 pub mod filter;
 pub mod outcome;
@@ -25,6 +26,7 @@ pub use outcome::{
     CompleteOutcome, DeleteOutcome, DrainReport, EditOutcome, PriorityOutcome, Reconcile,
     StoreError, TagOutcome, UnarchiveOutcome, UndoOutcome,
 };
+pub use tree::TreeStore;
 
 /// The durable task store. Owns the live task list, the sibling `done.md`
 /// archive, undo history, and the on-disk reconciliation snapshot.
