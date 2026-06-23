@@ -206,6 +206,25 @@ impl DraftState {
         }
     }
 
+    /// Delete from the start of the current/previous word up to the cursor
+    /// (Alt/Ctrl/Cmd+Backspace).
+    pub fn delete_word_backward(&mut self) {
+        let end = self.cursor.byte();
+        let s = &self.text;
+        let mut p = end;
+        while p > 0 && s.as_bytes()[prev_char_boundary(s, p)].is_ascii_whitespace() {
+            p = prev_char_boundary(s, p);
+        }
+        while p > 0 && !s.as_bytes()[prev_char_boundary(s, p)].is_ascii_whitespace() {
+            p = prev_char_boundary(s, p);
+        }
+        if end > p {
+            self.text.drain(p..end);
+            self.cursor = DraftCursor(p);
+            self.reset_autocomplete();
+        }
+    }
+
     /// Move to the end of the current or next word (`e`).
     pub fn move_word_end(&mut self) {
         let s = &self.text;
@@ -327,6 +346,9 @@ impl App {
 
     pub fn draft_delete_word_forward(&mut self) {
         self.draft.delete_word_forward();
+    }
+    pub fn draft_delete_word_backward(&mut self) {
+        self.draft.delete_word_backward();
     }
 }
 

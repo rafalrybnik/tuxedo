@@ -350,7 +350,19 @@ enum DraftEffect {
 /// to the draft. Centralizes the canonical key list so insert/search/prompt
 /// modes stay in sync as bindings evolve.
 fn apply_to_draft(app: &mut App, key: KeyEvent) -> DraftEffect {
+    // Word-motion modifier: Alt/Option, Ctrl, or Cmd/Super. Terminals emit
+    // different sequences for "jump/delete by word" (iTerm2 Option/Cmd+arrow,
+    // readline-style Alt+b / Alt+f), so any of these is treated as a word
+    // operation rather than literal text — and a modified letter is never
+    // inserted as a glyph.
+    let word_mod = key
+        .modifiers
+        .intersects(KeyModifiers::ALT | KeyModifiers::CONTROL | KeyModifiers::SUPER);
     match key.code {
+        KeyCode::Backspace if word_mod => {
+            app.draft_delete_word_backward();
+            DraftEffect::TextChanged
+        }
         KeyCode::Backspace => {
             app.draft_backspace();
             DraftEffect::TextChanged
@@ -359,6 +371,25 @@ fn apply_to_draft(app: &mut App, key: KeyEvent) -> DraftEffect {
             app.draft_delete_forward();
             DraftEffect::TextChanged
         }
+        KeyCode::Left if word_mod => {
+            app.draft_word_backward();
+            DraftEffect::CursorMoved
+        }
+        KeyCode::Right if word_mod => {
+            app.draft_word_forward();
+            DraftEffect::CursorMoved
+        }
+        KeyCode::Char('b') if word_mod => {
+            app.draft_word_backward();
+            DraftEffect::CursorMoved
+        }
+        KeyCode::Char('f') if word_mod => {
+            app.draft_word_forward();
+            DraftEffect::CursorMoved
+        }
+        // Any other modified char is a shortcut, not text: swallow it so e.g.
+        // Option+letter never inserts a stray glyph.
+        KeyCode::Char(_) if word_mod => DraftEffect::CursorMoved,
         KeyCode::Char(c) => {
             app.draft_insert_char(c);
             DraftEffect::TextChanged
