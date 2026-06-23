@@ -57,7 +57,7 @@ impl Store {
             return DrainReport::default();
         }
 
-        // Coordinate with `tuxedo serve`'s POST handler (and other tuxedo
+        // Coordinate with `tuxemdo serve`'s POST handler (and other tuxemdo
         // instances). The lock spans the rename + read + cleanup.
         let _lock = match inbox::acquire_lock(&self.file_path) {
             Ok(l) => l,
@@ -225,7 +225,7 @@ mod tests {
         use std::sync::atomic::{AtomicUsize, Ordering};
         static N: AtomicUsize = AtomicUsize::new(0);
         let n = N.fetch_add(1, Ordering::Relaxed);
-        let dir = std::env::temp_dir().join(format!("tuxedo-inbox-{}-{}", std::process::id(), n));
+        let dir = std::env::temp_dir().join(format!("tuxemdo-inbox-{}-{}", std::process::id(), n));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         let todo_path = dir.join("todo.md");
@@ -254,7 +254,7 @@ mod tests {
         assert!(on_disk.contains("Buy milk"));
         assert!(on_disk.contains("Call mom"));
         assert!(!dir.join("inbox.md").exists());
-        assert!(!dir.join("inbox.md.tuxedo-staging").exists());
+        assert!(!dir.join("inbox.md.tuxemdo-staging").exists());
     }
 
     #[test]
@@ -290,11 +290,11 @@ mod tests {
     #[test]
     fn drain_recovers_existing_staging_file() {
         let (mut store, dir, _) = build_store_with_dir("a\n");
-        std::fs::write(dir.join("inbox.md.tuxedo-staging"), "recovered task\n").unwrap();
+        std::fs::write(dir.join("inbox.md.tuxemdo-staging"), "recovered task\n").unwrap();
         assert_eq!(store.drain_inbox().merged, 1);
         assert_eq!(store.tasks().len(), 2);
         assert!(store.tasks()[1].raw.contains("recovered task"));
-        assert!(!dir.join("inbox.md.tuxedo-staging").exists());
+        assert!(!dir.join("inbox.md.tuxemdo-staging").exists());
     }
 
     #[test]
@@ -321,7 +321,7 @@ mod tests {
             std::fs::read_to_string(&todo_path).unwrap(),
             after_toggle_disk,
         );
-        assert!(!dir.join("inbox.md.tuxedo-staging").exists());
+        assert!(!dir.join("inbox.md.tuxemdo-staging").exists());
         store.undo();
         assert_ne!(store.tasks()[0].done, toggled);
     }

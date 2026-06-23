@@ -1246,7 +1246,7 @@ mod tests {
 
     fn build_insert_app(seed: &str, draft: &str) -> App {
         let path = std::env::temp_dir().join(format!(
-            "tuxedo-dialog-test-{}-{}.txt",
+            "tuxemdo-dialog-test-{}-{}.txt",
             std::process::id(),
             seed.len(),
         ));
@@ -1499,7 +1499,7 @@ mod tests {
 
     fn build_prompt_app(seed: &str, draft: &str, mode: Mode) -> App {
         let path = std::env::temp_dir().join(format!(
-            "tuxedo-prompt-dialog-test-{}-{}.txt",
+            "tuxemdo-prompt-dialog-test-{}-{}.txt",
             std::process::id(),
             seed.len(),
         ));

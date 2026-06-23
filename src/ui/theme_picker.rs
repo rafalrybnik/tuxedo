@@ -17,7 +17,7 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
         .title(Line::from(vec![
             Span::raw(" "),
             Span::styled(
-                "tuxedo",
+                "tuxemdo",
                 Style::default()
                     .fg(theme.accent)
                     .add_modifier(Modifier::BOLD),

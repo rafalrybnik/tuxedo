@@ -16,11 +16,11 @@ use ratatui::backend::TestBackend;
 use ratatui::buffer::Buffer;
 use ratatui::style::{Color, Modifier};
 
-use tuxedo::app::{App, Density, Mode, View};
-use tuxedo::config::Config;
-use tuxedo::sample;
-use tuxedo::theme;
-use tuxedo::ui;
+use tuxemdo::app::{App, Density, Mode, View};
+use tuxemdo::config::Config;
+use tuxemdo::sample;
+use tuxemdo::theme;
+use tuxemdo::ui;
 
 const COLS: u16 = 130;
 const ROWS: u16 = 32;
@@ -37,7 +37,7 @@ fn main() -> std::io::Result<()> {
     // consistent and pack the most content per frame.
     let make = || {
         let mut app = App::new(
-            PathBuf::from("/tmp/tuxedo-screenshots.txt"),
+            PathBuf::from("/tmp/tuxemdo-screenshots.txt"),
             sample::TODO_RAW.to_string(),
             "2026-05-06".to_string(),
             Config::default(),
@@ -77,7 +77,7 @@ fn main() -> std::io::Result<()> {
     // 6. Empty state — fresh file, cell-bowtie logo and quick-start panel.
     // Sidebars hidden so the centered panel reads as the focal point.
     let mut app = App::new(
-        PathBuf::from("/tmp/tuxedo-screenshots-empty.txt"),
+        PathBuf::from("/tmp/tuxemdo-screenshots-empty.txt"),
         String::new(),
         "2026-05-06".to_string(),
         Config::default(),

@@ -1,14 +1,14 @@
-//! Update-availability check and `tuxedo update` subcommand.
+//! Update-availability check and `tuxemdo update` subcommand.
 //!
 //! Two pieces:
 //!
-//! 1. [`run`] — handler for `tuxedo update`. Detects how tuxedo was installed
+//! 1. [`run`] — handler for `tuxemdo update`. Detects how tuxemdo was installed
 //!    (Homebrew, Cargo, plain binary) and prints the exact command the user
 //!    should run. Does not execute it: we don't want to surprise users with a
 //!    `brew upgrade` or a binary self-replace.
 //!
 //! 2. [`spawn_check`] — background thread invoked at TUI startup that consults
-//!    a cache under `$XDG_CACHE_HOME/tuxedo/latest_version.json`. If the cache
+//!    a cache under `$XDG_CACHE_HOME/tuxemdo/latest_version.json`. If the cache
 //!    is missing or older than 24h, it shells out to `curl` to read the
 //!    `tag_name` of the latest GitHub release, rewrites the cache, and returns
 //!    the tag through an mpsc channel. The TUI's status bar reads it and
@@ -22,7 +22,7 @@ use std::sync::mpsc::{self, Receiver};
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-/// How tuxedo appears to have been installed, judged by the path of the
+/// How tuxemdo appears to have been installed, judged by the path of the
 /// currently-running executable. Used to recommend the right upgrade command.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InstallKind {
@@ -32,7 +32,7 @@ pub enum InstallKind {
     Unknown,
 }
 
-/// Run the `tuxedo update` subcommand: detect install method and print
+/// Run the `tuxemdo update` subcommand: detect install method and print
 /// instructions. Exits with code 0 on success; the caller (`main`) should
 /// `return Ok(())` after invoking this.
 pub fn run() -> io::Result<()> {
@@ -42,7 +42,7 @@ pub fn run() -> io::Result<()> {
         .map(detect_kind)
         .unwrap_or(InstallKind::Unknown);
     let current = env!("CARGO_PKG_VERSION");
-    println!("tuxedo {current}");
+    println!("tuxemdo {current}");
     if let Some(p) = &exe {
         println!("installed at: {}", p.display());
     }
@@ -51,7 +51,7 @@ pub fn run() -> io::Result<()> {
         InstallKind::Homebrew => {
             println!("Looks like a Homebrew install. Update with:");
             println!();
-            println!("    brew update && brew upgrade webstonehq/tap/tuxedo");
+            println!("    brew update && brew upgrade webstonehq/tap/tuxemdo");
         }
         InstallKind::Cargo => {
             println!("Looks like a `cargo install` build. Update with:");
@@ -68,7 +68,7 @@ pub fn run() -> io::Result<()> {
         InstallKind::Unknown => {
             println!("Could not detect the install method. Options:");
             println!();
-            println!("    brew upgrade webstonehq/tap/tuxedo");
+            println!("    brew upgrade webstonehq/tap/tuxemdo");
             println!("    cargo install --git https://github.com/webstonehq/tuxedo --force");
             println!("    https://github.com/webstonehq/tuxedo/releases/latest");
         }
@@ -90,7 +90,7 @@ pub fn detect_kind(exe: &Path) -> InstallKind {
     if s.contains("/.cargo/bin/") || s.contains("\\.cargo\\bin\\") {
         return InstallKind::Cargo;
     }
-    // A bare /usr/local/bin/tuxedo could be either a Homebrew shim (older
+    // A bare /usr/local/bin/tuxemdo could be either a Homebrew shim (older
     // macOS) or a manual download. Without more signal, treat it as a binary.
     if !s.is_empty() {
         return InstallKind::Binary;
@@ -156,7 +156,7 @@ fn fetch_latest_body() -> Option<String> {
             "-H",
             "Accept: application/vnd.github+json",
             "-A",
-            concat!("tuxedo/", env!("CARGO_PKG_VERSION")),
+            concat!("tuxemdo/", env!("CARGO_PKG_VERSION")),
             RELEASE_URL,
         ])
         .output()
@@ -217,7 +217,7 @@ pub fn is_newer(latest: &str, current: &str) -> bool {
 
 fn cache_path() -> Option<PathBuf> {
     let base = xdg_cache_home()?;
-    Some(base.join("tuxedo").join("latest_version.json"))
+    Some(base.join("tuxemdo").join("latest_version.json"))
 }
 
 fn xdg_cache_home() -> Option<PathBuf> {
@@ -293,24 +293,24 @@ mod tests {
     #[test]
     fn detect_kind_homebrew_paths() {
         assert_eq!(
-            detect_kind(&PathBuf::from("/opt/homebrew/bin/tuxedo")),
+            detect_kind(&PathBuf::from("/opt/homebrew/bin/tuxemdo")),
             InstallKind::Homebrew
         );
         assert_eq!(
             detect_kind(&PathBuf::from(
-                "/opt/homebrew/Cellar/tuxedo/2026.5.3/bin/tuxedo"
+                "/opt/homebrew/Cellar/tuxemdo/2026.5.3/bin/tuxemdo"
             )),
             InstallKind::Homebrew
         );
         assert_eq!(
             detect_kind(&PathBuf::from(
-                "/usr/local/Cellar/tuxedo/2026.5.3/bin/tuxedo"
+                "/usr/local/Cellar/tuxemdo/2026.5.3/bin/tuxemdo"
             )),
             InstallKind::Homebrew
         );
         assert_eq!(
             detect_kind(&PathBuf::from(
-                "/home/linuxbrew/.linuxbrew/Cellar/tuxedo/2026.5.3/bin/tuxedo"
+                "/home/linuxbrew/.linuxbrew/Cellar/tuxemdo/2026.5.3/bin/tuxemdo"
             )),
             InstallKind::Homebrew
         );
@@ -319,7 +319,7 @@ mod tests {
     #[test]
     fn detect_kind_cargo_path() {
         assert_eq!(
-            detect_kind(&PathBuf::from("/home/m/.cargo/bin/tuxedo")),
+            detect_kind(&PathBuf::from("/home/m/.cargo/bin/tuxemdo")),
             InstallKind::Cargo
         );
     }
@@ -327,11 +327,11 @@ mod tests {
     #[test]
     fn detect_kind_falls_back_to_binary() {
         assert_eq!(
-            detect_kind(&PathBuf::from("/usr/local/bin/tuxedo")),
+            detect_kind(&PathBuf::from("/usr/local/bin/tuxemdo")),
             InstallKind::Binary
         );
         assert_eq!(
-            detect_kind(&PathBuf::from("/tmp/tuxedo")),
+            detect_kind(&PathBuf::from("/tmp/tuxemdo")),
             InstallKind::Binary
         );
     }
@@ -400,7 +400,7 @@ mod tests {
     #[test]
     fn cache_round_trip() {
         let dir = std::env::temp_dir().join(format!(
-            "tuxedo-update-cache-{}-{:?}",
+            "tuxemdo-update-cache-{}-{:?}",
             std::process::id(),
             std::thread::current().id()
         ));
@@ -422,7 +422,7 @@ mod tests {
     #[test]
     fn cache_round_trip_empty_tag_is_negative_marker() {
         let dir = std::env::temp_dir().join(format!(
-            "tuxedo-update-neg-{}-{:?}",
+            "tuxemdo-update-neg-{}-{:?}",
             std::process::id(),
             std::thread::current().id()
         ));

@@ -1554,7 +1554,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "tuxedo"
+name = "tuxemdo"
 version = "2026.6.3"
 dependencies = [
  "anyhow",

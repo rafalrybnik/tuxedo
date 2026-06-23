@@ -2,7 +2,7 @@
 source: tests/snapshots.rs
 expression: buffer_to_text(&buf)
 ---
- ▶▮◀ /tmp/tuxedo-snapshot.txt  •  0 tasks  •  sort:priority                                         
+ ▶▮◀ /tmp/tuxemdo-snapshot.txt  •  0 tasks  •  sort:priority                                        
                                                                                                     
                                                                                                     
                                                                                                     
@@ -10,7 +10,7 @@ expression: buffer_to_text(&buf)
                                                                                                     
                                                                                                     
                                                                                                     
-                      ┌ tuxedo ──────────────────────────────────────────────┐                      
+                      ┌ tuxemdo ─────────────────────────────────────────────┐                      
                       │                    ██          ██                    │                      
                       │                    ████  ██  ████                    │                      
                       │                    ██████████████                    │                      
@@ -33,4 +33,4 @@ expression: buffer_to_text(&buf)
                                                                                                     
                                                                                                     
                                                                                                     
- NORMAL   j/k · n new · r reschedule · x done · / search · ? h0 open · 2026-05-06 · tuxedo 2026.6.3
+ NORMAL   j/k · n new · r reschedule · x done · / search · ? 0 open · 2026-05-06 · tuxemdo 2026.6.3

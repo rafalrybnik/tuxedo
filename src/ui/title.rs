@@ -1,6 +1,6 @@
 //! Terminal window-title rendering.
 //!
-//! Produces a stable `tuxedo <path>` title so the window/tab title is
+//! Produces a stable `tuxemdo <path>` title so the window/tab title is
 //! consistent across terminals and operating systems, rather than each
 //! terminal inventing its own. The home directory collapses to `~`, and when
 //! the title would exceed a fixed character budget the leading directory
@@ -15,7 +15,7 @@ use std::path::Path;
 /// the pragmatic choice.
 pub const DEFAULT_BUDGET: usize = 64;
 
-const PREFIX: &str = "tuxedo ";
+const PREFIX: &str = "tuxemdo ";
 
 /// Build the terminal title for `path`. `home`, when supplied, collapses to
 /// `~`. The returned string never exceeds `budget` characters unless even a
@@ -117,7 +117,7 @@ mod tests {
             Some(Path::new("/Users/m")),
             DEFAULT_BUDGET,
         );
-        assert_eq!(title, "tuxedo ~/work/todo.md");
+        assert_eq!(title, "tuxemdo ~/work/todo.md");
     }
 
     #[test]
@@ -129,7 +129,7 @@ mod tests {
             Some(Path::new("/Users/m")),
             35,
         );
-        assert_eq!(title, "tuxedo ~/p/g/w/tuxedo/todo.md");
+        assert_eq!(title, "tuxemdo ~/p/g/w/tuxedo/todo.md");
     }
 
     #[test]
@@ -139,13 +139,13 @@ mod tests {
             Some(Path::new("/Users/m")),
             10,
         );
-        assert_eq!(title, "tuxedo ~/p/g/w/t/todo.md");
+        assert_eq!(title, "tuxemdo ~/p/g/w/t/todo.md");
     }
 
     #[test]
     fn keeps_absolute_path_when_home_is_unknown() {
         let title = terminal_title(Path::new("/Users/m/work/todo.md"), None, DEFAULT_BUDGET);
-        assert_eq!(title, "tuxedo /Users/m/work/todo.md");
+        assert_eq!(title, "tuxemdo /Users/m/work/todo.md");
     }
 
     #[test]
@@ -156,7 +156,7 @@ mod tests {
             Some(Path::new("/Users/m")),
             28,
         );
-        assert_eq!(title, "tuxedo ~/.c/nvim/notes.txt");
+        assert_eq!(title, "tuxemdo ~/.c/nvim/notes.txt");
     }
 
     #[test]
@@ -166,6 +166,6 @@ mod tests {
             Some(Path::new("/Users/m")),
             DEFAULT_BUDGET,
         );
-        assert_eq!(title, "tuxedo notes/todo.md");
+        assert_eq!(title, "tuxemdo notes/todo.md");
     }
 }
