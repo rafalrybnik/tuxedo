@@ -11,7 +11,7 @@ expression: buffer_to_text(&buf)
    tag with @context       (1)  NO PRIORITY  ─────────────────────                                  
                             3       Write up notes                 RAW                              
                                                                                                     
-                                                                   (A) Buy milk                     
+                                                                   - [ ] (A) Buy milk               
                                                                                                     
                                                                                                     
                                                                                                     

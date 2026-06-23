@@ -1,4 +1,4 @@
-//! One-shot CLI commands (a todo.txt-cli-style surface), driving the headless
+//! One-shot CLI commands (a todo.md-cli-style surface), driving the headless
 //! [`Store`](crate::core::Store). Invoked by `main` when the first argument is a
 //! recognized subcommand; otherwise the binary launches the TUI.
 
@@ -142,7 +142,7 @@ fn parse_index(s: &str, len: usize) -> Result<usize, String> {
 }
 
 /// The message prefix todo.sh derives from the file name: the basename up to
-/// the first `.`, uppercased (e.g. `todo.txt` → `TODO`).
+/// the first `.`, uppercased (e.g. `todo.md` → `TODO`).
 fn file_prefix(store: &Store) -> String {
     store
         .file_path()
@@ -685,7 +685,7 @@ enum TagKind {
 }
 
 fn cmd_listtags(store: &Store, json: bool, kind: TagKind) -> i32 {
-    // todo.sh `listproj`/`listcon` greps the whole todo.txt (completed lines
+    // todo.sh `listproj`/`listcon` greps the whole todo.md (completed lines
     // included) and `sort -u`s the results — alphabetical and unique. This
     // differs from the TUI sidebar, which orders by count and excludes done
     // tasks (`core::filter::unique_values`).
@@ -742,7 +742,7 @@ mod tests {
     #[test]
     fn find_subcommand_none_for_tui_invocations() {
         assert_eq!(find_subcommand(&argv(&[])), None);
-        assert_eq!(find_subcommand(&argv(&["todo.txt"])), None);
+        assert_eq!(find_subcommand(&argv(&["todo.md"])), None);
         assert_eq!(find_subcommand(&argv(&["--help"])), None);
         assert_eq!(find_subcommand(&argv(&["--sample"])), None);
     }

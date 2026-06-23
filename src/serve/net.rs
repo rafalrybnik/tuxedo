@@ -1,6 +1,6 @@
 //! Network helpers for `tuxedo serve`: LAN-IP discovery, token
 //! generation, form-encoded body decoding, and the atomic append to
-//! `inbox.txt` that the POST handler uses.
+//! `inbox.md` that the POST handler uses.
 
 use std::fs::OpenOptions;
 use std::io::{self, Read, Seek, SeekFrom, Write};
@@ -117,7 +117,7 @@ fn hex_value(b: u8) -> Option<u8> {
     }
 }
 
-/// Append one line to the sibling `inbox.txt`. Uses `O_APPEND` under
+/// Append one line to the sibling `inbox.md`. Uses `O_APPEND` under
 /// [`inbox::acquire_lock`] so concurrent producers and the TUI drain
 /// serialize: the drain's rename can't strand a pending writer's data
 /// on an unlinked inode, and two writers can't tear each other's
@@ -227,13 +227,13 @@ mod tests {
         ));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
-        let todo_path = dir.join("todo.txt");
+        let todo_path = dir.join("todo.md");
         std::fs::write(&todo_path, "").unwrap();
         append_to_inbox(&todo_path, "  buy milk  ").unwrap();
-        let body = std::fs::read_to_string(dir.join("inbox.txt")).unwrap();
+        let body = std::fs::read_to_string(dir.join("inbox.md")).unwrap();
         assert_eq!(body, "buy milk\n");
         append_to_inbox(&todo_path, "call mom").unwrap();
-        let body = std::fs::read_to_string(dir.join("inbox.txt")).unwrap();
+        let body = std::fs::read_to_string(dir.join("inbox.md")).unwrap();
         assert_eq!(body, "buy milk\ncall mom\n");
     }
 
@@ -243,14 +243,14 @@ mod tests {
             std::env::temp_dir().join(format!("tuxedo-serve-append-empty-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
-        let todo_path = dir.join("todo.txt");
+        let todo_path = dir.join("todo.md");
         std::fs::write(&todo_path, "").unwrap();
         assert!(append_to_inbox(&todo_path, "   ").is_err());
     }
 
     #[test]
     fn append_inserts_leading_newline_when_prior_content_lacks_one() {
-        // Some external producer may have written `inbox.txt` without a
+        // Some external producer may have written `inbox.md` without a
         // trailing newline. Our append must not concatenate onto that
         // dangling line — both lines have to land separately so the
         // drain parses them as distinct tasks.
@@ -258,9 +258,9 @@ mod tests {
             std::env::temp_dir().join(format!("tuxedo-serve-append-noeol-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
-        let todo_path = dir.join("todo.txt");
+        let todo_path = dir.join("todo.md");
         std::fs::write(&todo_path, "").unwrap();
-        let inbox = dir.join("inbox.txt");
+        let inbox = dir.join("inbox.md");
         std::fs::write(&inbox, "dangling").unwrap();
         append_to_inbox(&todo_path, "next").unwrap();
         assert_eq!(std::fs::read_to_string(&inbox).unwrap(), "dangling\nnext\n");

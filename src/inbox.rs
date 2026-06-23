@@ -1,11 +1,11 @@
-//! Sibling `inbox.txt` capture flow.
+//! Sibling `inbox.md` capture flow.
 //!
 //! External producers (shell appends, iOS Shortcuts writing to a sync
 //! folder, `tuxedo serve`'s POST handler) drop one task per line into a
-//! sibling `inbox.txt`. The running TUI drains it on each external-change
+//! sibling `inbox.md`. The running TUI drains it on each external-change
 //! poll (~250 ms): each line is run through the natural-language
 //! pipeline, given a creation date if missing, validated, and merged
-//! into `todo.txt`. See [`crate::app::App::drain_inbox`] for the merge
+//! into `todo.md`. See [`crate::app::App::drain_inbox`] for the merge
 //! wiring; this module owns the pure per-line transformation.
 
 use std::path::{Path, PathBuf};
@@ -14,28 +14,28 @@ use chrono::NaiveDate;
 
 use crate::{nl, todo};
 
-pub const FILENAME: &str = "inbox.txt";
-pub const STAGING_FILENAME: &str = "inbox.txt.tuxedo-staging";
-pub const LOCK_FILENAME: &str = "inbox.txt.tuxedo-lock";
+pub const FILENAME: &str = "inbox.md";
+pub const STAGING_FILENAME: &str = "inbox.md.tuxedo-staging";
+pub const LOCK_FILENAME: &str = "inbox.md.tuxedo-lock";
 
-/// Sibling `inbox.txt` next to the given todo.txt path. Falls back to
+/// Sibling `inbox.md` next to the given todo.md path. Falls back to
 /// the current directory if `todo_path` has no parent.
 pub fn path_for(todo_path: &Path) -> PathBuf {
     sibling(todo_path, FILENAME)
 }
 
 /// Staging file used during drain. The merge step renames
-/// `inbox.txt` → `inbox.txt.tuxedo-staging` *before* reading, so any
+/// `inbox.md` → `inbox.md.tuxedo-staging` *before* reading, so any
 /// concurrent external append after the rename lands in a fresh
-/// `inbox.txt` rather than being lost. The staging file is deleted only
-/// after the merged `todo.txt` has been written atomically; if tuxedo
+/// `inbox.md` rather than being lost. The staging file is deleted only
+/// after the merged `todo.md` has been written atomically; if tuxedo
 /// crashes between, the next drain picks the staging file up and merges
 /// it as if it were a regular inbox.
 pub fn staging_path_for(todo_path: &Path) -> PathBuf {
     sibling(todo_path, STAGING_FILENAME)
 }
 
-/// Advisory-lock file guarding `inbox.txt`. Held briefly by both the
+/// Advisory-lock file guarding `inbox.md`. Held briefly by both the
 /// `tuxedo serve` POST handler (around its append) and the TUI drain
 /// (around its rename-and-merge). Without it the writer's `open` could
 /// pin the inode after the drain has renamed it to `staging`, the
@@ -49,7 +49,7 @@ pub fn lock_path_for(todo_path: &Path) -> PathBuf {
 /// Acquire the inbox lock. The returned handle holds an exclusive
 /// `flock`-style lock for its lifetime — drop it to release. Both
 /// producers and the drain take this around any operation touching
-/// `inbox.txt` or `staging`. Cross-platform via `std::fs::File::lock`
+/// `inbox.md` or `staging`. Cross-platform via `std::fs::File::lock`
 /// (`flock` on Unix, `LockFileEx` on Windows); released automatically
 /// on process exit if the holder crashes.
 pub fn acquire_lock(todo_path: &Path) -> std::io::Result<std::fs::File> {
@@ -101,9 +101,9 @@ pub fn finalize_line(text: &str, today_str: &str) -> Result<todo::Task, todo::Pa
     if text.is_empty() {
         return Err(todo::ParseError::Empty);
     }
-    let final_text = if !todo::starts_with_priority(text)
+    let final_text = if !todo::starts_with_checkbox(text)
+        && !todo::starts_with_priority(text)
         && !todo::starts_with_iso_date(text)
-        && !text.starts_with("x ")
     {
         format!("{today_str} {text}")
     } else {
@@ -124,25 +124,25 @@ mod tests {
 
     #[test]
     fn path_for_uses_sibling_directory() {
-        let p = PathBuf::from("/tmp/work/todo.txt");
-        assert_eq!(path_for(&p), PathBuf::from("/tmp/work/inbox.txt"));
+        let p = PathBuf::from("/tmp/work/todo.md");
+        assert_eq!(path_for(&p), PathBuf::from("/tmp/work/inbox.md"));
     }
 
     #[test]
     fn path_for_falls_back_to_relative_when_no_parent() {
-        // A bare filename like "todo.txt" still has parent = Some("")
-        // on Unix, which joins to "inbox.txt" — same result either way.
-        let p = PathBuf::from("todo.txt");
+        // A bare filename like "todo.md" still has parent = Some("")
+        // on Unix, which joins to "inbox.md" — same result either way.
+        let p = PathBuf::from("todo.md");
         let got = path_for(&p);
-        assert_eq!(got.file_name().unwrap(), "inbox.txt");
+        assert_eq!(got.file_name().unwrap(), "inbox.md");
     }
 
     #[test]
     fn staging_path_for_uses_distinct_name() {
-        let p = PathBuf::from("/tmp/work/todo.txt");
+        let p = PathBuf::from("/tmp/work/todo.md");
         assert_eq!(
             staging_path_for(&p),
-            PathBuf::from("/tmp/work/inbox.txt.tuxedo-staging"),
+            PathBuf::from("/tmp/work/inbox.md.tuxedo-staging"),
         );
     }
 
@@ -153,7 +153,7 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("tuxedo-inbox-lock-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
-        let todo_path = dir.join("todo.txt");
+        let todo_path = dir.join("todo.md");
         std::fs::write(&todo_path, "").unwrap();
         let held = acquire_lock(&todo_path).unwrap();
 
@@ -199,7 +199,7 @@ mod tests {
     fn canonicalize_does_not_prepend_date_when_already_present() {
         let task = canonicalize_line("2026-04-01 already dated", today()).unwrap();
         assert_eq!(task.created_date.as_deref(), Some("2026-04-01"));
-        assert_eq!(task.raw, "2026-04-01 already dated");
+        assert_eq!(task.raw, "- [ ] 2026-04-01 already dated");
     }
 
     #[test]
@@ -211,7 +211,7 @@ mod tests {
 
     #[test]
     fn canonicalize_preserves_done_lines() {
-        let task = canonicalize_line("x 2026-05-10 2026-05-01 wrap-up", today()).unwrap();
+        let task = canonicalize_line("- [x] 2026-05-10 2026-05-01 wrap-up", today()).unwrap();
         assert!(task.done);
         assert_eq!(task.done_date.as_deref(), Some("2026-05-10"));
     }
@@ -248,13 +248,13 @@ mod tests {
     #[test]
     fn finalize_prepends_date_to_bare_body() {
         let task = finalize_line("buy bread", "2026-05-13").unwrap();
-        assert_eq!(task.raw, "2026-05-13 buy bread");
+        assert_eq!(task.raw, "- [ ] 2026-05-13 buy bread");
     }
 
     #[test]
     fn finalize_skips_date_on_priority() {
         let task = finalize_line("(B) cleanup", "2026-05-13").unwrap();
-        assert_eq!(task.raw, "(B) cleanup");
+        assert_eq!(task.raw, "- [ ] (B) cleanup");
     }
 
     #[test]

@@ -1,7 +1,7 @@
 use super::App;
 use super::draft::prev_char_boundary;
 use super::types::{AUTOCOMPLETE_CAP, Mode};
-use crate::todo::{self, Task, starts_with_iso_date, starts_with_priority};
+use crate::todo::{self, Task, starts_with_checkbox, starts_with_iso_date, starts_with_priority};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TokenKind {
@@ -157,7 +157,10 @@ impl App {
             return None;
         }
         let mut text = trimmed.to_string();
-        if !starts_with_priority(&text) && !starts_with_iso_date(&text) && !text.starts_with("x ") {
+        if !starts_with_checkbox(&text)
+            && !starts_with_priority(&text)
+            && !starts_with_iso_date(&text)
+        {
             text = format!("{} {}", self.store.today(), text);
         }
         Some(todo::parse_line(&text))

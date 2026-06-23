@@ -1,6 +1,5 @@
 ---
 source: tests/snapshots.rs
-assertion_line: 226
 expression: buffer_to_text(&buf)
 ---
  FILTERS                   ▶▮◀ /tmp/tuxedo-snapshot.txt  •  15 tas DETAIL                           
@@ -13,8 +12,8 @@ expression: buffer_to_text(&buf)
    +learning        │ > █                                                      │                    
    +personal        │──────────────────────────────────────────────────────────│                    
    +travel          │ ▶ new task                                             n │                    
-                    │   edit current task (normal mode)                      e │1 Finish Q2 board   
- CONTEXTS           │   edit current task (insert mode)                      i │aptop               
+                    │   edit current task (normal mode)                      e │6-05-01 Finish Q2   
+ CONTEXTS           │   edit current task (insert mode)                      i │ork @laptop         
    @errands         │   toggle complete                                      x │6                   
    @home            │   delete task                                         dd │                    
    @laptop          │   cycle priority                                       p │                    

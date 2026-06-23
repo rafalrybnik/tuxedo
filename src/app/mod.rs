@@ -120,13 +120,13 @@ pub struct App {
 }
 
 impl App {
-    /// Construct an App whose archive is the sibling `done.txt` of `file_path`.
+    /// Construct an App whose archive is the sibling `done.md` of `file_path`.
     pub fn new(file_path: PathBuf, body: String, today: String, cfg: Config) -> Self {
         let store = Store::new(file_path.clone(), body, today);
         Self::from_store(store, file_path, cfg)
     }
 
-    /// Like [`App::new`] but with an explicit `done.txt` path (e.g. `DONE_FILE`).
+    /// Like [`App::new`] but with an explicit `done.md` path (e.g. `DONE_FILE`).
     pub fn new_with_done(
         file_path: PathBuf,
         done_path: PathBuf,
@@ -382,7 +382,7 @@ impl App {
         self.store.tasks()
     }
 
-    /// Read-only view of the archived (`done.txt`) tasks.
+    /// Read-only view of the archived (`done.md`) tasks.
     pub fn archive(&self) -> &Archive {
         self.store.archive()
     }
@@ -415,7 +415,7 @@ impl App {
         }
     }
 
-    /// Pump archive state (startup loader + external `done.txt` edits). Returns
+    /// Pump archive state (startup loader + external `done.md` edits). Returns
     /// true when the visible archive changed, so the caller redraws. Refreshes
     /// the visible cache when the Archive view is active.
     pub fn poll_archive(&mut self) -> bool {

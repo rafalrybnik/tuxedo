@@ -1,6 +1,5 @@
 ---
 source: tests/snapshots.rs
-assertion_line: 226
 expression: buffer_to_text(&buf)
 ---
  FILTERS                   ▶▮◀ /tmp/tuxedo-snapshot.txt  •  15 tas DETAIL                           
@@ -13,7 +12,7 @@ expression: buffer_to_text(&buf)
    +l│    Ctrl-d / Ctrl-u   page down / up            v                 visual / multi-select │     
    +p│                                                l                 list view             │     
    +t│  EDITING                                       a                 archive view          │     
-     │    n                 new task                  A                 archive completed     │rd   
+     │    n                 new task                  A                 archive completed     │Q2   
  CONT│    e                 edit line (normal)        H                 show done in list     │     
    @e│    i                 edit line (insert)        F                 show future in list   │     
    @h│    r                 reschedule task           [ / ]             toggle filter / detail│     

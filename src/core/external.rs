@@ -34,8 +34,8 @@ impl Store {
         Reconcile::Reloaded
     }
 
-    /// Merge any sibling `inbox.txt` (or recovered staging file from a previous
-    /// interrupted drain) into `todo.txt`. Each line is run through the
+    /// Merge any sibling `inbox.md` (or recovered staging file from a previous
+    /// interrupted drain) into `todo.md`. Each line is run through the
     /// natural-language pipeline; invalid lines are skipped and counted. The
     /// returned [`DrainReport`] tells the caller what happened so it can render
     /// a message — the core never flashes.
@@ -50,7 +50,7 @@ impl Store {
         // Fast path: if neither the inbox nor a recovered staging file
         // exists, there's nothing to drain — skip the lock entirely so the
         // common case (no capture activity) doesn't litter a lock file next
-        // to todo.txt. A POST that creates inbox.txt between this check and
+        // to todo.md. A POST that creates inbox.md between this check and
         // the next tick is benign: it takes the lock itself when appending,
         // and the next drain picks the line up.
         if !inbox_path.exists() && !staging.exists() {
@@ -66,7 +66,7 @@ impl Store {
         };
 
         // Step 1: stage. Reuse an existing staging file (crash recovery);
-        // otherwise atomically rename inbox.txt → staging so concurrent
+        // otherwise atomically rename inbox.md → staging so concurrent
         // appends go to a fresh file. If neither exists, nothing to do.
         let staging_body = match std::fs::read_to_string(&staging) {
             Ok(body) => body,
@@ -186,7 +186,7 @@ mod tests {
         std::fs::write(&path, "x\ny\nz\n").unwrap();
         assert_eq!(store.reconcile(), Reconcile::Reloaded);
         assert_eq!(store.tasks().len(), 3);
-        assert_eq!(store.tasks()[0].raw, "x");
+        assert_eq!(store.tasks()[0].raw, "- [ ] x");
         assert_eq!(store.reconcile(), Reconcile::Unchanged);
     }
 
@@ -228,7 +228,7 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("tuxedo-inbox-{}-{}", std::process::id(), n));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
-        let todo_path = dir.join("todo.txt");
+        let todo_path = dir.join("todo.md");
         std::fs::write(&todo_path, todo_raw).unwrap();
         let store = Store::open_sync(todo_path.clone(), todo_raw.to_string(), "2026-05-13".into());
         (store, dir, todo_path)
@@ -238,7 +238,7 @@ mod tests {
     fn drain_merges_natural_language_lines() {
         let (mut store, dir, todo_path) = build_store_with_dir("(A) 2026-05-01 existing\n");
         std::fs::write(
-            dir.join("inbox.txt"),
+            dir.join("inbox.md"),
             "Buy milk tomorrow\nCall mom every friday\n",
         )
         .unwrap();
@@ -253,8 +253,8 @@ mod tests {
         let on_disk = std::fs::read_to_string(&todo_path).unwrap();
         assert!(on_disk.contains("Buy milk"));
         assert!(on_disk.contains("Call mom"));
-        assert!(!dir.join("inbox.txt").exists());
-        assert!(!dir.join("inbox.txt.tuxedo-staging").exists());
+        assert!(!dir.join("inbox.md").exists());
+        assert!(!dir.join("inbox.md.tuxedo-staging").exists());
     }
 
     #[test]
@@ -279,7 +279,7 @@ mod tests {
     #[test]
     fn drain_skips_invalid_and_reports_count() {
         let (mut store, dir, _) = build_store_with_dir("a\n");
-        std::fs::write(dir.join("inbox.txt"), "good line\n\n# this is a comment\n").unwrap();
+        std::fs::write(dir.join("inbox.md"), "good line\n\n# this is a comment\n").unwrap();
         let report = store.drain_inbox();
         assert_eq!(report.merged, 1);
         assert_eq!(report.skipped, 0);
@@ -290,17 +290,17 @@ mod tests {
     #[test]
     fn drain_recovers_existing_staging_file() {
         let (mut store, dir, _) = build_store_with_dir("a\n");
-        std::fs::write(dir.join("inbox.txt.tuxedo-staging"), "recovered task\n").unwrap();
+        std::fs::write(dir.join("inbox.md.tuxedo-staging"), "recovered task\n").unwrap();
         assert_eq!(store.drain_inbox().merged, 1);
         assert_eq!(store.tasks().len(), 2);
         assert!(store.tasks()[1].raw.contains("recovered task"));
-        assert!(!dir.join("inbox.txt.tuxedo-staging").exists());
+        assert!(!dir.join("inbox.md.tuxedo-staging").exists());
     }
 
     #[test]
     fn drain_is_undoable_as_single_batch() {
         let (mut store, dir, _) = build_store_with_dir("a\n");
-        std::fs::write(dir.join("inbox.txt"), "one\ntwo\nthree\n").unwrap();
+        std::fs::write(dir.join("inbox.md"), "one\ntwo\nthree\n").unwrap();
         assert_eq!(store.drain_inbox().merged, 3);
         assert_eq!(store.tasks().len(), 4);
         store.undo();
@@ -314,14 +314,14 @@ mod tests {
         store.toggle_complete(0);
         let toggled = store.tasks()[0].done;
         let after_toggle_disk = std::fs::read_to_string(&todo_path).unwrap();
-        std::fs::write(dir.join("inbox.txt"), "\n  \n# just a comment\n\n").unwrap();
+        std::fs::write(dir.join("inbox.md"), "\n  \n# just a comment\n\n").unwrap();
         let report = store.drain_inbox();
         assert_eq!(report.merged, 0);
         assert_eq!(
             std::fs::read_to_string(&todo_path).unwrap(),
             after_toggle_disk,
         );
-        assert!(!dir.join("inbox.txt.tuxedo-staging").exists());
+        assert!(!dir.join("inbox.md.tuxedo-staging").exists());
         store.undo();
         assert_ne!(store.tasks()[0].done, toggled);
     }

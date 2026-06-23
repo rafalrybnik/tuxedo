@@ -165,7 +165,7 @@ mod tests {
         let path = app.archive().path().to_path_buf();
         app.store.archive = crate::app::Archive::for_test(
             crate::todo::parse_file(
-                "x 2026-05-01 2026-04-01 first\nx 2026-05-02 2026-04-02 second\n",
+                "- [x] 2026-05-01 2026-04-01 first\n- [x] 2026-05-02 2026-04-02 second\n",
             ),
             String::new(),
             path,
@@ -228,7 +228,10 @@ mod tests {
     fn future_absolute_threshold_hidden_by_default() {
         let mut app = build_app("future task t:2030-01-01\nvisible task\n");
         assert_eq!(app.visible_indices().len(), 1);
-        assert_eq!(app.tasks()[app.visible_indices()[0]].raw, "visible task");
+        assert_eq!(
+            app.tasks()[app.visible_indices()[0]].raw,
+            "- [ ] visible task"
+        );
         app.prefs.show_future = true;
         app.recompute_visible();
         assert_eq!(app.visible_indices().len(), 2);
@@ -267,7 +270,7 @@ mod tests {
         let path = app.archive().path().to_path_buf();
         app.store.archive = crate::app::Archive::for_test(
             crate::todo::parse_file(
-                "x 2026-04-01 2026-03-01 older\nx 2026-05-02 2026-04-02 newer\n",
+                "- [x] 2026-04-01 2026-03-01 older\n- [x] 2026-05-02 2026-04-02 newer\n",
             ),
             String::new(),
             path,

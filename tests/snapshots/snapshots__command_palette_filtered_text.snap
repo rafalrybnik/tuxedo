@@ -12,8 +12,8 @@ expression: buffer_to_text(&buf)
    +learning        │ > arch█  4 matches                                       │                    
    +personal        │──────────────────────────────────────────────────────────│                    
    +travel          │ ▶ archive completed tasks                              A │                    
-                    │   toggle archive view                                  a │1 Finish Q2 board   
- CONTEXTS           │   fuzzy search                                         / │aptop               
+                    │   toggle archive view                                  a │6-05-01 Finish Q2   
+ CONTEXTS           │   fuzzy search                                         / │ork @laptop         
    @errands         │   save search as filter                               fs │6                   
    @home            │                                                          │                    
    @laptop          │                                                          │                    

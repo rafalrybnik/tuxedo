@@ -97,8 +97,8 @@ mod tests {
         app.mode = Mode::Visual;
         app.delete_selected();
         assert_eq!(app.tasks().len(), 2);
-        assert_eq!(app.tasks()[0].raw, "a");
-        assert_eq!(app.tasks()[1].raw, "c");
+        assert_eq!(app.tasks()[0].raw, "- [ ] a");
+        assert_eq!(app.tasks()[1].raw, "- [ ] c");
         assert!(app.selection.is_empty());
         assert_eq!(app.mode, Mode::Normal);
     }

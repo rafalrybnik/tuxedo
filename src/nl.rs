@@ -2,7 +2,7 @@
 //!
 //! When the user types prose into the add buffer ("Pay rent monthly on the
 //! first, show 3 days before due, project home"), this module extracts the
-//! structured todo.txt metadata so the caller can rewrite the buffer into
+//! structured todo.md metadata so the caller can rewrite the buffer into
 //! canonical form for the user to review.
 //!
 //! Pure logic — no I/O, no app state. The crate-level wiring lives in
@@ -75,7 +75,7 @@ pub fn try_parse(text: &str, today: NaiveDate) -> Option<ParsedNl> {
     if extracted { Some(parsed) } else { None }
 }
 
-/// Serialize a parsed result back to a canonical todo.txt line. Token order
+/// Serialize a parsed result back to a canonical todo.md line. Token order
 /// is fixed: `(P) body +proj… @ctx… due:… rec:… t:…`. An empty body falls
 /// back to `"todo"` so the result is always a well-formed task — the caller
 /// is expected to flash a hint so the user knows to fix the body.

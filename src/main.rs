@@ -29,7 +29,7 @@ fn main() -> Result<()> {
     }
     let arg = argv.first().cloned();
     // `start_mode` is `Welcome` only on a true first run (no target and no
-    // ./todo.txt); every other entry opens straight into Normal.
+    // ./todo.md); every other entry opens straight into Normal.
     let (path, start_mode) = match arg.as_deref() {
         Some("--help") | Some("-h") => {
             print_usage();
@@ -52,8 +52,8 @@ fn main() -> Result<()> {
         _ => match cli::resolve_target(arg)? {
             cli::Target::File(p) => (p, Mode::Normal),
             // Open into the welcome prompt backed by an as-yet-uncreated
-            // ./todo.txt; `handle_welcome` materializes the file the user picks.
-            cli::Target::FirstRun => (std::path::PathBuf::from("todo.txt"), Mode::Welcome),
+            // ./todo.md; `handle_welcome` materializes the file the user picks.
+            cli::Target::FirstRun => (std::path::PathBuf::from("todo.md"), Mode::Welcome),
         },
     };
     // A freshly-created file is empty; otherwise read it. We accept NotFound
@@ -129,13 +129,13 @@ fn print_usage() {
     println!("       tuxedo <command> [args]       run a one-shot command");
     println!("       tuxedo update");
     println!();
-    println!("Without FILE or a command, opens ./todo.txt if present; otherwise");
-    println!("prompts to create ./todo.txt here or open a sample todo.txt, in");
+    println!("Without FILE or a command, opens ./todo.md if present; otherwise");
+    println!("prompts to create ./todo.md here or open a sample todo.md, in");
     println!("the interactive TUI.");
     println!();
     println!("Inside the TUI, press `s` to expose a phone-friendly capture");
     println!("endpoint on your LAN and show a QR code for it. Captures land");
-    println!("in a sibling inbox.txt that the TUI merges on the next poll.");
+    println!("in a sibling inbox.md that the TUI merges on the next poll.");
     println!();
     println!("Commands (task numbers are 1-based file lines, as shown by `list`):");
     println!("  add, a TEXT...            add a task (natural-language dates supported)");
@@ -146,9 +146,9 @@ fn print_usage() {
     println!("  depri, dp N...            remove priority from task N");
     println!("  done, do N...             mark task N complete");
     println!("  del, rm N [TERM]          delete task N (prompts; -f to force), or remove TERM");
-    println!("  archive                   move completed tasks to done.txt");
+    println!("  archive                   move completed tasks to done.md");
     println!("  list, ls [TERM...]        list tasks (TERM: +project @context or text)");
-    println!("  listall, lsa [TERM...]    list todo.txt and done.txt");
+    println!("  listall, lsa [TERM...]    list todo.md and done.md");
     println!("  listpri, lsp [PRIORITY]   list prioritized tasks");
     println!("  listproj, lsprj           list +projects");
     println!("  listcon, lsc              list @contexts");
@@ -159,12 +159,12 @@ fn print_usage() {
     println!("      --json       machine-readable output for the commands above");
     println!("  -h, --help       show this message and exit");
     println!("  -V, --version    print version and exit");
-    println!("      --sample     open the sample todo.txt in the TUI");
+    println!("      --sample     open the sample todo.md in the TUI");
     println!();
     println!("Environment:");
-    println!("  TODO_DIR     directory holding todo.txt / done.txt");
-    println!("  TODO_FILE    path to the todo file (default $TODO_DIR/todo.txt)");
-    println!("  DONE_FILE    path to the archive file (default sibling done.txt)");
+    println!("  TODO_DIR     directory holding todo.md / done.md");
+    println!("  TODO_FILE    path to the todo file (default $TODO_DIR/todo.md)");
+    println!("  DONE_FILE    path to the archive file (default sibling done.md)");
 }
 
 fn run(mut terminal: DefaultTerminal, app: &mut App, keybinds: &KeyBindings) -> Result<()> {
@@ -176,7 +176,7 @@ fn run(mut terminal: DefaultTerminal, app: &mut App, keybinds: &KeyBindings) -> 
             dirty = true;
         }
         // Drain the startup archive loader (and pick up external edits to
-        // done.txt). Non-blocking: the first frame can render todo.txt
+        // done.md). Non-blocking: the first frame can render todo.md
         // before the archive read completes.
         if app.poll_archive() {
             dirty = true;
@@ -271,7 +271,7 @@ fn handle_key(app: &mut App, key: KeyEvent, keybinds: &KeyBindings) {
     }
 }
 
-/// First-run welcome prompt. `c` creates `./todo.txt` (the App's current
+/// First-run welcome prompt. `c` creates `./todo.md` (the App's current
 /// `file_path`) and edits it; `s` opens the bundled sample; `q`/`Esc` quits
 /// without creating anything. Any other key is ignored so a stray press
 /// doesn't silently pick an option.
@@ -466,7 +466,7 @@ fn handle_insert(app: &mut App, key: KeyEvent) {
                 app.add_from_draft()
             };
             // `Parsed` means the NL parser rewrote the draft into canonical
-            // todo.txt and is asking the user to confirm — stay in Insert so
+            // todo.md and is asking the user to confirm — stay in Insert so
             // they can review/edit before a second Enter saves.
             if !matches!(outcome, AddOutcome::Parsed) {
                 app.mode = Mode::Normal;
@@ -844,7 +844,7 @@ fn resolve_normal_key(app: &mut App, key: KeyEvent, keybinds: &KeyBindings) -> O
 
 fn apply_action(app: &mut App, action: Action) {
     // Archive view is read-only with two exceptions: `x` un-archives the
-    // row at the cursor, `dd` permanently removes it from done.txt. Other
+    // row at the cursor, `dd` permanently removes it from done.md. Other
     // mutating actions flash a hint and abort. Navigation, view-switch,
     // theme/density/layout toggles, and overlays (help/settings) fall
     // through to the normal handler below.
@@ -1275,14 +1275,14 @@ mod tests {
         assert_eq!(app.tasks().len(), 3);
 
         // One completed task → archive_completed runs.
-        let mut app = build_app_with_archive("x 2026-05-08 done one\nb\n", None);
+        let mut app = build_app_with_archive("- [x] 2026-05-08 done one\nb\n", None);
         apply_action(&mut app, Action::ArchiveCompleted);
         assert_eq!(app.tasks().len(), 1, "completed task must be archived");
     }
 
     #[test]
     fn lowercase_l_returns_to_list_from_any_view() {
-        let mut app = build_app_with_archive("a\n", Some("x 2026-05-02 2026-04-02 done\n"));
+        let mut app = build_app_with_archive("a\n", Some("- [x] 2026-05-02 2026-04-02 done\n"));
         app.set_view(View::Archive);
         apply_action(&mut app, Action::GoList);
         assert_eq!(app.view(), View::List);
@@ -1290,7 +1290,7 @@ mod tests {
 
     #[test]
     fn lowercase_a_toggles_archive_view() {
-        let mut app = build_app_with_archive("a\n", Some("x 2026-05-02 2026-04-02 done\n"));
+        let mut app = build_app_with_archive("a\n", Some("- [x] 2026-05-02 2026-04-02 done\n"));
         assert_eq!(app.view(), View::List);
         apply_action(&mut app, Action::ToggleArchiveView);
         assert_eq!(app.view(), View::Archive);
@@ -1370,7 +1370,7 @@ mod tests {
     }
 
     /// Build an isolated App rooted in a fresh temp dir, optionally seeding
-    /// done.txt and waiting for the startup loader to land.
+    /// done.md and waiting for the startup loader to land.
     fn build_app_with_archive(todo_raw: &str, done_raw: Option<&str>) -> App {
         use std::time::{Duration, Instant};
         static N: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
@@ -1379,10 +1379,10 @@ mod tests {
             std::env::temp_dir().join(format!("tuxedo-bindings-{}-{}", std::process::id(), n));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).expect("create test dir");
-        let todo_path = dir.join("todo.txt");
-        std::fs::write(&todo_path, todo_raw).expect("write todo.txt");
+        let todo_path = dir.join("todo.md");
+        std::fs::write(&todo_path, todo_raw).expect("write todo.md");
         if let Some(body) = done_raw {
-            std::fs::write(dir.join("done.txt"), body).expect("write done.txt");
+            std::fs::write(dir.join("done.md"), body).expect("write done.md");
         }
         let mut app = App::new(
             todo_path,
@@ -1409,7 +1409,7 @@ mod tests {
     fn cursor_navigation_works_in_archive() {
         let mut app = build_app_with_archive(
             "a due:2026-05-04\nb due:2026-05-06\nc due:2026-05-08\n",
-            Some("x 2026-05-01 2026-04-01 first\nx 2026-05-02 2026-04-02 second\n"),
+            Some("- [x] 2026-05-01 2026-04-01 first\n- [x] 2026-05-02 2026-04-02 second\n"),
         );
         app.set_view(View::Archive);
         assert_eq!(app.cursor, 0);
@@ -1421,7 +1421,7 @@ mod tests {
 
     #[test]
     fn archive_x_unarchives_task_under_cursor() {
-        let mut app = build_app_with_archive("a\n", Some("x 2026-05-02 2026-04-02 done one\n"));
+        let mut app = build_app_with_archive("a\n", Some("- [x] 2026-05-02 2026-04-02 done one\n"));
         app.set_view(View::Archive);
         apply_action(&mut app, Action::ToggleComplete);
         assert_eq!(app.archive().len(), 0, "task must leave the archive");
@@ -1435,16 +1435,16 @@ mod tests {
 
     #[test]
     fn archive_dd_permanently_deletes_task_under_cursor() {
-        let mut app = build_app_with_archive("a\n", Some("x 2026-05-02 2026-04-02 done one\n"));
+        let mut app = build_app_with_archive("a\n", Some("- [x] 2026-05-02 2026-04-02 done one\n"));
         app.set_view(View::Archive);
         apply_action(&mut app, Action::Delete);
         assert_eq!(app.archive().len(), 0);
-        assert_eq!(app.tasks().len(), 1, "todo.txt must be untouched");
+        assert_eq!(app.tasks().len(), 1, "todo.md must be untouched");
     }
 
     #[test]
     fn archive_e_and_p_flash_readonly() {
-        let mut app = build_app_with_archive("a\n", Some("x 2026-05-02 2026-04-02 done one\n"));
+        let mut app = build_app_with_archive("a\n", Some("- [x] 2026-05-02 2026-04-02 done one\n"));
         app.set_view(View::Archive);
         apply_action(&mut app, Action::BeginEdit);
         assert_eq!(app.flash_active(), Some("read-only in archive"));

@@ -23,7 +23,7 @@ pub(crate) enum SegmentKind {
 }
 
 /// Walk a draft and tag each byte range with what it represents in the
-/// todo.txt format. Used by the dialog to syntax-highlight what the user is
+/// todo.md format. Used by the dialog to syntax-highlight what the user is
 /// typing. Mirrors `todo::parse_line`'s grammar at the token level but
 /// doesn't share code — the highlighter must keep up character-by-character
 /// even on partially-typed input that the parser would reject.
@@ -32,12 +32,13 @@ pub(crate) fn classify_draft(s: &str) -> Vec<(std::ops::Range<usize>, SegmentKin
     let bytes = s.as_bytes();
     let mut i = 0;
 
-    // Optional leading "x " marker (done) followed by an optional done-date.
-    if bytes.len() >= 2 && bytes[0] == b'x' && bytes[1].is_ascii_whitespace() {
-        out.push((0..1, SegmentKind::Plain));
-        out.push((1..2, SegmentKind::Plain));
-        i = 2;
-        if let Some(end) = match_date(bytes, i) {
+    // Optional leading GFM checkbox: "- [ ] " (open) or "- [x] " (done); when
+    // done, an optional done-date follows. Drafts for brand-new tasks rarely
+    // carry one, but editing an existing task pre-fills its raw line.
+    if let Some((done, marker_len)) = match_checkbox(bytes) {
+        out.push((0..marker_len, SegmentKind::Plain));
+        i = marker_len;
+        if done && let Some(end) = match_date(bytes, i) {
             out.push((i..end, SegmentKind::Date));
             i = end;
             if i < bytes.len() && bytes[i].is_ascii_whitespace() {
@@ -87,6 +88,18 @@ pub(crate) fn classify_draft(s: &str) -> Vec<(std::ops::Range<usize>, SegmentKin
     }
 
     out
+}
+
+/// Match a leading GFM checkbox marker at byte 0. Returns `(done, marker_len)`
+/// where `marker_len` is the byte length of the marker incl. trailing space.
+fn match_checkbox(bytes: &[u8]) -> Option<(bool, usize)> {
+    if bytes.starts_with(b"- [ ] ") {
+        return Some((false, 6));
+    }
+    if bytes.starts_with(b"- [x] ") || bytes.starts_with(b"- [X] ") {
+        return Some((true, 6));
+    }
+    None
 }
 
 fn match_priority(bytes: &[u8], i: usize) -> Option<usize> {
@@ -460,7 +473,7 @@ pub fn render_prompt(frame: &mut Frame, area: Rect, app: &App) {
     );
 }
 
-/// Colored example tokens illustrating the todo.txt format.
+/// Colored example tokens illustrating the todo.md format.
 /// Used by both the empty state and the add/edit dialog so they stay in sync.
 pub fn format_hint_spans<'a>(theme: &Theme) -> Vec<Span<'a>> {
     use ratatui::style::Modifier;
@@ -1337,7 +1350,7 @@ mod tests {
 
     #[test]
     fn classify_done_marker_then_date() {
-        let s = "x 2026-05-05 thing";
+        let s = "- [x] 2026-05-05 thing";
         let r = super::classify_draft(s);
         let date_seg = r
             .iter()

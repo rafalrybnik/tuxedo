@@ -113,11 +113,11 @@ mod tests {
     #[test]
     fn shows_full_home_relative_path_when_it_fits() {
         let title = terminal_title(
-            Path::new("/Users/m/work/todo.txt"),
+            Path::new("/Users/m/work/todo.md"),
             Some(Path::new("/Users/m")),
             DEFAULT_BUDGET,
         );
-        assert_eq!(title, "tuxedo ~/work/todo.txt");
+        assert_eq!(title, "tuxedo ~/work/todo.md");
     }
 
     #[test]
@@ -125,27 +125,27 @@ mod tests {
         // Full title is 51 chars; budget 35 forces collapsing through
         // `webstonehq` but leaves the deepest dir intact.
         let title = terminal_title(
-            Path::new("/Users/m/projects/github/webstonehq/tuxedo/todo.txt"),
+            Path::new("/Users/m/projects/github/webstonehq/tuxedo/todo.md"),
             Some(Path::new("/Users/m")),
             35,
         );
-        assert_eq!(title, "tuxedo ~/p/g/w/tuxedo/todo.txt");
+        assert_eq!(title, "tuxedo ~/p/g/w/tuxedo/todo.md");
     }
 
     #[test]
     fn floor_collapses_all_dirs_but_keeps_filename() {
         let title = terminal_title(
-            Path::new("/Users/m/projects/github/webstonehq/tuxedo/todo.txt"),
+            Path::new("/Users/m/projects/github/webstonehq/tuxedo/todo.md"),
             Some(Path::new("/Users/m")),
             10,
         );
-        assert_eq!(title, "tuxedo ~/p/g/w/t/todo.txt");
+        assert_eq!(title, "tuxedo ~/p/g/w/t/todo.md");
     }
 
     #[test]
     fn keeps_absolute_path_when_home_is_unknown() {
-        let title = terminal_title(Path::new("/Users/m/work/todo.txt"), None, DEFAULT_BUDGET);
-        assert_eq!(title, "tuxedo /Users/m/work/todo.txt");
+        let title = terminal_title(Path::new("/Users/m/work/todo.md"), None, DEFAULT_BUDGET);
+        assert_eq!(title, "tuxedo /Users/m/work/todo.md");
     }
 
     #[test]
@@ -162,10 +162,10 @@ mod tests {
     #[test]
     fn shows_relative_path_without_prefix() {
         let title = terminal_title(
-            Path::new("notes/todo.txt"),
+            Path::new("notes/todo.md"),
             Some(Path::new("/Users/m")),
             DEFAULT_BUDGET,
         );
-        assert_eq!(title, "tuxedo notes/todo.txt");
+        assert_eq!(title, "tuxedo notes/todo.md");
     }
 }

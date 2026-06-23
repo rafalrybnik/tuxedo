@@ -4,8 +4,8 @@
 //! listener, spawns a background thread for the accept loop, and
 //! returns a [`ShareInfo`] for the QR overlay to render.
 //!
-//! Architecture: the server never touches `todo.txt` directly. Every
-//! captured task is appended to a sibling `inbox.txt`, where the
+//! Architecture: the server never touches `todo.md` directly. Every
+//! captured task is appended to a sibling `inbox.md`, where the
 //! running TUI drains it through the same natural-language pipeline
 //! used by the `n` add prompt. This keeps the server isolated — no
 //! shared in-process state between the HTTP threads and the TUI — and
@@ -178,7 +178,7 @@ fn handle_add(mut req: Request, todo_path: &Path) -> Result<()> {
     }
 }
 
-/// Read `todo.txt` and the sibling `inbox.txt` and emit a single text
+/// Read `todo.md` and the sibling `inbox.md` and emit a single text
 /// response. The PWA splits on the separator to render the two
 /// sections; keeping it plain-text avoids pulling in serde.
 fn build_tasks_view(todo_path: &Path) -> Result<String> {
@@ -251,9 +251,9 @@ mod tests {
             std::env::temp_dir().join(format!("tuxedo-serve-tasks-view-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
-        let todo_path = dir.join("todo.txt");
+        let todo_path = dir.join("todo.md");
         std::fs::write(&todo_path, "(A) 2026-05-01 a\n").unwrap();
-        std::fs::write(dir.join("inbox.txt"), "buy milk\n").unwrap();
+        std::fs::write(dir.join("inbox.md"), "buy milk\n").unwrap();
         let view = build_tasks_view(&todo_path).unwrap();
         let (open, inbox) = view
             .split_once("\n--- inbox (pending) ---\n")
@@ -268,7 +268,7 @@ mod tests {
             std::env::temp_dir().join(format!("tuxedo-serve-tasks-missing-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
-        let todo_path = dir.join("todo.txt");
+        let todo_path = dir.join("todo.md");
         std::fs::write(&todo_path, "a\n").unwrap();
         let view = build_tasks_view(&todo_path).unwrap();
         assert!(view.starts_with("a\n"));
@@ -280,7 +280,7 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("tuxedo-serve-start-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
-        let todo_path = dir.join("todo.txt");
+        let todo_path = dir.join("todo.md");
         std::fs::write(&todo_path, "").unwrap();
         let token = net::generate_token().unwrap();
         let info = start(todo_path.clone(), token.clone(), 0).unwrap();

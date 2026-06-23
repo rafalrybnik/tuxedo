@@ -12,8 +12,8 @@ expression: buffer_to_text(&buf)
    +learning         1     (1)  NO PRIORITY  ─────────────────────                                  
    +personal         1      4       Migrate analytics to new pipel RAW                              
    +travel           1                                                                              
-                                                                   (A) 2026-05-01 Finish Q2 board   
- CONTEXTS                                                          deck +work @laptop               
+                                                                   - [ ] (A) 2026-05-01 Finish Q2   
+ CONTEXTS                                                          board deck +work @laptop         
    @errands          4                                             due:2026-05-06                   
    @home             4                                                                              
    @laptop           4                                                                              

@@ -26,7 +26,7 @@ pub use outcome::{
     StoreError, TagOutcome, UnarchiveOutcome, UndoOutcome,
 };
 
-/// The durable task store. Owns the live task list, the sibling `done.txt`
+/// The durable task store. Owns the live task list, the sibling `done.md`
 /// archive, undo history, and the on-disk reconciliation snapshot.
 pub struct Store {
     pub(crate) tasks: Vec<Task>,
@@ -40,7 +40,7 @@ pub struct Store {
 }
 
 impl Store {
-    /// Construct a store, loading the archive (`done.txt`) off-thread from the
+    /// Construct a store, loading the archive (`done.md`) off-thread from the
     /// sibling of `file_path`. Used by the TUI so the first frame doesn't wait
     /// on the archive read.
     pub fn new(file_path: PathBuf, body: String, today: String) -> Self {
@@ -48,7 +48,7 @@ impl Store {
         Self::assemble(file_path, archive, body, today)
     }
 
-    /// Like [`Store::new`] but with an explicit `done.txt` path (e.g. from a
+    /// Like [`Store::new`] but with an explicit `done.md` path (e.g. from a
     /// `DONE_FILE` env var that isn't a sibling of the todo file).
     pub fn new_with_done(
         file_path: PathBuf,
@@ -67,7 +67,7 @@ impl Store {
         Self::assemble(file_path, archive, body, today)
     }
 
-    /// Like [`Store::open_sync`] but with an explicit `done.txt` path.
+    /// Like [`Store::open_sync`] but with an explicit `done.md` path.
     pub fn open_sync_with_done(
         file_path: PathBuf,
         done_path: PathBuf,

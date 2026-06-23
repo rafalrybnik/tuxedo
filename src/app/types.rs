@@ -42,7 +42,7 @@ pub enum Mode {
     /// Esc to revert.
     PickTheme,
     /// First-run welcome prompt, shown when `tuxedo` is launched with no
-    /// target and no `./todo.txt` exists. `c` creates `./todo.txt`, `s`
+    /// target and no `./todo.md` exists. `c` creates `./todo.md`, `s`
     /// opens the bundled sample, `q`/`Esc` quits without creating anything.
     Welcome,
 }

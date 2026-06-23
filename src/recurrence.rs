@@ -1,7 +1,7 @@
 //! Parsing and date arithmetic for `rec:[+]Nu` recurrence tags.
 //!
 //! Format mirrors topydo / SwiftoDo / sleek / dorecur, the de-facto consensus
-//! for todo.txt recurrence:
+//! for todo.md recurrence:
 //!
 //! ```text
 //! rec:Nd     // every N calendar days, anchored to the completion date

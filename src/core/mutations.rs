@@ -126,7 +126,7 @@ impl Store {
         self.add_with(text, true)
     }
 
-    /// Add a task from text that is already canonical todo.txt (no NL pass,
+    /// Add a task from text that is already canonical todo.md (no NL pass,
     /// just creation-date prefix + validation). Used by the TUI add-prompt's
     /// save path, where the draft was already rewritten to canonical form.
     pub fn add_finalized(&mut self, text: &str) -> AddOutcome {
@@ -359,7 +359,7 @@ impl Store {
             let rec_spec = t.rec.as_deref().and_then(recurrence::parse_rec_spec);
             let created = t.created_date.clone().unwrap_or_else(|| self.today.clone());
             let body = todo::body_after_priority(&raw).to_string();
-            let new_raw = format!("x {} {} {}", self.today, created, body);
+            let new_raw = format!("- [x] {} {} {}", self.today, created, body);
             if let Ok(parsed) = todo::parse_line(&new_raw) {
                 self.tasks[abs] = parsed;
             }
@@ -492,14 +492,14 @@ mod tests {
 
     #[test]
     fn toggle_complete_undoes_done_task() {
-        let mut store = build_store("x 2026-05-05 2026-05-01 finish report\n");
+        let mut store = build_store("- [x] 2026-05-05 2026-05-01 finish report\n");
         assert!(store.tasks()[0].done);
         assert!(matches!(
             store.toggle_complete(0),
             CompleteOutcome::Uncompleted { .. }
         ));
         assert!(!store.tasks()[0].done);
-        assert_eq!(store.tasks()[0].raw, "2026-05-01 finish report");
+        assert_eq!(store.tasks()[0].raw, "- [ ] 2026-05-01 finish report");
     }
 
     #[test]
@@ -641,9 +641,13 @@ mod tests {
         assert!(store.tasks()[0].projects.contains(&"work".to_string()));
         store.prepend_at(0, "URGENT");
         // Prepend lands after the priority + creation date.
-        assert!(store.tasks()[0].raw.starts_with("(A) 2026-05-01 URGENT"));
+        assert!(
+            store.tasks()[0]
+                .raw
+                .starts_with("- [ ] (A) 2026-05-01 URGENT")
+        );
         store.edit_line(0, "completely new");
-        assert_eq!(store.tasks()[0].raw, "completely new");
+        assert_eq!(store.tasks()[0].raw, "- [ ] completely new");
     }
 
     #[test]
@@ -693,14 +697,14 @@ mod tests {
         assert_eq!(store.tasks().len(), 6);
         assert!(store.tasks()[1].done);
         assert_eq!(store.tasks()[2].due.as_deref(), Some("2026-05-15"));
-        assert_eq!(store.tasks()[3].raw, "b");
+        assert_eq!(store.tasks()[3].raw, "- [ ] b");
         assert!(store.tasks()[4].done);
         assert_eq!(store.tasks()[5].due.as_deref(), Some("2026-05-16"));
     }
 
     #[test]
     fn complete_many_skips_already_done() {
-        let mut store = build_store("a\nx 2026-05-05 2026-05-01 b\nc\n");
+        let mut store = build_store("a\n- [x] 2026-05-05 2026-05-01 b\nc\n");
         store.complete_many(&[0, 1, 2]);
         assert!(store.tasks()[0].done);
         assert_eq!(store.tasks()[1].done_date.as_deref(), Some("2026-05-05"));
@@ -715,7 +719,7 @@ mod tests {
             BulkDeleteOutcome::Done { deleted: 2 }
         ));
         assert_eq!(store.tasks().len(), 2);
-        assert_eq!(store.tasks()[0].raw, "a");
-        assert_eq!(store.tasks()[1].raw, "c");
+        assert_eq!(store.tasks()[0].raw, "- [ ] a");
+        assert_eq!(store.tasks()[1].raw, "- [ ] c");
     }
 }

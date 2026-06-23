@@ -65,14 +65,23 @@ pub fn parse_line(raw: &str) -> Result<Task, ParseError> {
     let mut done = false;
     let mut done_date: Option<String> = None;
 
-    if let Some(stripped) = strip_prefix_x(rest) {
-        done = true;
-        rest = stripped;
-        if let Some((date, after)) = take_iso_date_prefix(rest) {
-            done_date = Some(date);
-            rest = after;
+    // todo.md: task state is a leading GFM checkbox. `- [x] ` (done) / `- [ ] `
+    // (open) replaces todo.md's leading `x `. Lines without a checkbox (hand-
+    // edited, or migrated from a todo.md file) still parse and are normalised
+    // to an open checkbox below so they round-trip as valid todo.md.
+    let had_checkbox = if let Some((is_done, after)) = strip_checkbox(rest) {
+        rest = after;
+        if is_done {
+            done = true;
+            if let Some((date, after_date)) = take_iso_date_prefix(rest) {
+                done_date = Some(date);
+                rest = after_date;
+            }
         }
-    }
+        true
+    } else {
+        false
+    };
 
     let mut priority: Option<char> = None;
     if let Some((c, after)) = take_priority_prefix(rest) {
@@ -92,8 +101,16 @@ pub fn parse_line(raw: &str) -> Result<Task, ParseError> {
     let rec = find_kv(rest, "rec");
     let threshold = find_kv(rest, "t");
 
+    // Normalise to a checkbox-prefixed line so every stored task is valid
+    // todo.md regardless of how it entered the parser.
+    let raw = if had_checkbox {
+        line.to_string()
+    } else {
+        format!("- [ ] {line}")
+    };
+
     Ok(Task {
-        raw: line.to_string(),
+        raw,
         done,
         done_date,
         priority,
@@ -106,15 +123,37 @@ pub fn parse_line(raw: &str) -> Result<Task, ParseError> {
     })
 }
 
-fn strip_prefix_x(s: &str) -> Option<&str> {
-    let mut chars = s.chars();
-    if chars.next()? == 'x' {
-        let rest = chars.as_str();
-        if rest.starts_with(' ') || rest.starts_with('\t') {
-            return Some(rest.trim_start());
-        }
+/// Strip a leading GFM checkbox. Returns `(done, rest)`: `done` is true for
+/// `- [x] ` / `- [X] `, false for `- [ ] `. Returns `None` when the line has no
+/// checkbox so hand-edited / legacy lines stay parseable.
+fn strip_checkbox(s: &str) -> Option<(bool, &str)> {
+    if let Some(rest) = s.strip_prefix("- [ ] ") {
+        return Some((false, rest.trim_start()));
+    }
+    if let Some(rest) = s
+        .strip_prefix("- [x] ")
+        .or_else(|| s.strip_prefix("- [X] "))
+    {
+        return Some((true, rest.trim_start()));
     }
     None
+}
+
+/// Split the leading checkbox marker off `raw`, returning `(prefix, rest)`.
+/// `prefix` is `""` when there is no checkbox. Used by in-place edits that must
+/// preserve the marker while rewriting what follows it.
+fn split_checkbox_prefix(raw: &str) -> (&str, &str) {
+    for marker in ["- [ ] ", "- [x] ", "- [X] "] {
+        if raw.starts_with(marker) {
+            return raw.split_at(marker.len());
+        }
+    }
+    ("", raw)
+}
+
+/// True if `s` begins with a GFM checkbox marker (`- [ ] ` / `- [x] `).
+pub fn starts_with_checkbox(s: &str) -> bool {
+    s.starts_with("- [ ] ") || s.starts_with("- [x] ") || s.starts_with("- [X] ")
 }
 
 /// Strip a leading `YYYY-MM-DD` token. Returns `(date_string, rest)` only if
@@ -210,10 +249,10 @@ pub fn write_atomic(path: &Path, body: &str) -> std::io::Result<()> {
 
 impl Task {
     /// Mark this task complete as of `today`. No-op if already done.
-    /// The serialized line follows todo.txt convention: `x DONE CREATED BODY`,
-    /// where `BODY` has had any leading priority/created-date stripped. If the
-    /// task carried no creation date, `today` is used so the line stays well-
-    /// formed.
+    /// The serialized line follows the todo.md convention: `- [x] DONE CREATED
+    /// BODY`, where `BODY` has had any leading checkbox/priority/created-date
+    /// stripped. If the task carried no creation date, `today` is used so the
+    /// line stays well-formed.
     pub fn mark_done(&mut self, today: &str) -> Result<(), ParseError> {
         if self.done {
             return Ok(());
@@ -223,40 +262,44 @@ impl Task {
             .clone()
             .unwrap_or_else(|| today.to_string());
         let body = body_after_priority(&self.raw);
-        let new_raw = format!("x {today} {created} {body}");
+        let new_raw = format!("- [x] {today} {created} {body}");
         self.replace_from_raw(&new_raw)
     }
 
-    /// Reverse `mark_done`: drop the leading `x ` and the done-date token.
-    /// Priority that was stripped at completion time is not recovered — the
-    /// user can re-set it after un-archiving.
+    /// Reverse `mark_done`: uncheck the box (`- [x] ` → `- [ ] `) and drop the
+    /// done-date token. Priority that was stripped at completion time is not
+    /// recovered — the user can re-set it after un-archiving.
     pub fn unmark_done(&mut self) -> Result<(), ParseError> {
         if !self.done {
             return Ok(());
         }
-        let after_x = self.raw.strip_prefix("x ").unwrap_or(&self.raw);
+        let (_, after_box) = split_checkbox_prefix(&self.raw);
         let body = if self.done_date.is_some() {
-            // mark_done emits "x DONE_DATE CREATED BODY". Drop the 10-char
+            // mark_done emits "- [x] DONE_DATE CREATED BODY". Drop the 10-char
             // date plus its trailing space.
-            let bytes = after_x.as_bytes();
+            let bytes = after_box.as_bytes();
             if bytes.len() >= 11 && (bytes[10] == b' ' || bytes[10] == b'\t') {
-                after_x[11..].trim_start().to_string()
+                after_box[11..].trim_start().to_string()
             } else {
-                after_x.to_string()
+                after_box.to_string()
             }
         } else {
-            after_x.to_string()
+            after_box.to_string()
         };
-        self.replace_from_raw(&body)
+        let new_raw = format!("- [ ] {body}");
+        self.replace_from_raw(&new_raw)
     }
 
     /// Set or clear this task's priority. The priority byte is replaced in
     /// place at the start of the line; nothing else changes.
     pub fn set_priority(&mut self, priority: Option<char>) -> Result<(), ParseError> {
-        let body = strip_priority(&self.raw);
+        // Priority lives right after the checkbox, so split it off, rewrite the
+        // remainder, and re-attach the marker.
+        let (prefix, rest) = split_checkbox_prefix(&self.raw);
+        let body = strip_priority(rest);
         let new_raw = match priority {
-            Some(p) => format!("({p}) {body}"),
-            None => body.to_string(),
+            Some(p) => format!("{prefix}({p}) {body}"),
+            None => format!("{prefix}{body}"),
         };
         self.replace_from_raw(&new_raw)
     }
@@ -365,7 +408,7 @@ pub fn strip_priority(raw: &str) -> &str {
 }
 
 /// A project/context name is valid if non-empty and contains no characters
-/// that would break the todo.txt tokenization: whitespace splits a tag in
+/// that would break the todo.md tokenization: whitespace splits a tag in
 /// half, and `+`/`@`/`:` collide with the format's own sigils.
 pub fn is_valid_tag_name(name: &str) -> bool {
     !name.is_empty()
@@ -376,10 +419,10 @@ pub fn is_valid_tag_name(name: &str) -> bool {
 
 pub fn body_after_priority(raw: &str) -> &str {
     let mut s = raw;
-    if let Some(stripped) = strip_prefix_x(s) {
-        s = stripped;
-        if let Some((_, after)) = take_iso_date_prefix(s) {
-            s = after;
+    if let Some((is_done, after)) = strip_checkbox(s) {
+        s = after;
+        if is_done && let Some((_, after_date)) = take_iso_date_prefix(s) {
+            s = after_date;
         }
     }
     if let Some((_, after)) = take_priority_prefix(s) {
@@ -466,7 +509,7 @@ mod tests {
         // sort/grouping code as a string. The parser now refuses.
         let t = parse_line("9999-99-99 not a date").unwrap();
         assert_eq!(t.created_date, None);
-        assert!(t.raw.starts_with("9999-99-99"));
+        assert!(t.raw.starts_with("- [ ] 9999-99-99"));
     }
 
     #[test]
@@ -518,7 +561,8 @@ mod tests {
 
     #[test]
     fn parses_completed() {
-        let t = parse_line("x 2026-05-05 2026-05-01 Submit expense report +work @laptop").unwrap();
+        let t =
+            parse_line("- [x] 2026-05-05 2026-05-01 Submit expense report +work @laptop").unwrap();
         assert!(t.done);
         assert_eq!(t.done_date.as_deref(), Some("2026-05-05"));
         assert_eq!(t.created_date.as_deref(), Some("2026-05-01"));
@@ -543,7 +587,7 @@ mod tests {
     fn body_strips_metadata() {
         let raw = "(A) 2026-05-01 Hello world";
         assert_eq!(body_after_priority(raw), "Hello world");
-        let raw2 = "x 2026-05-05 2026-05-01 Hello world";
+        let raw2 = "- [x] 2026-05-05 2026-05-01 Hello world";
         assert_eq!(body_after_priority(raw2), "Hello world");
     }
 
@@ -559,7 +603,7 @@ mod tests {
         );
         // Completed lines lose `x` + done date + creation date as well.
         assert_eq!(
-            body_only("x 2026-05-05 2026-05-01 Submit expense report +work @laptop"),
+            body_only("- [x] 2026-05-05 2026-05-01 Submit expense report +work @laptop"),
             "Submit expense report",
         );
         // Sigils inside a word (not at the start of a token) are not tags
@@ -567,7 +611,7 @@ mod tests {
         assert_eq!(body_only("email a+b@example.com"), "email a+b@example.com");
         // Lone sigils with no name are not valid tags either.
         assert_eq!(body_only("type @ then context"), "type @ then context");
-        // Unknown key:value tokens still drop — todo.txt treats any
+        // Unknown key:value tokens still drop — todo.md treats any
         // alphanumeric `key:value` as an extension, so we mirror that.
         assert_eq!(body_only("backup id:abc-123 nightly"), "backup nightly");
     }

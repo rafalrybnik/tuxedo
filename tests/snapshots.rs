@@ -348,7 +348,7 @@ fn insert_dialog() {
 #[test]
 fn insert_dialog_after_nl_parse() {
     // Type a prose buffer, press Enter once: the NL pre-pass rewrites the
-    // draft to canonical todo.txt and surfaces a flash asking the user to
+    // draft to canonical todo.md and surfaces a flash asking the user to
     // confirm. Mode stays in Insert so the user can review/edit.
     let mut app = make_app();
     app.mode = Mode::Insert;

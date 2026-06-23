@@ -209,7 +209,7 @@
       if (!r.ok) throw new Error("status " + r.status);
       const body = await r.text();
       const [openBlock, inboxBlock] = body.split("\n--- inbox (pending) ---\n", 2);
-      const openLines = openBlock.split("\n").filter(l => l.length > 0 && !l.startsWith("x "));
+      const openLines = openBlock.split("\n").filter(l => l.length > 0 && !l.startsWith("- [x] "));
       const inboxLines = (inboxBlock || "").split("\n").filter(l => l.trim().length > 0);
       $("count-open").textContent = openLines.length;
       $("count-inbox").textContent = inboxLines.length;

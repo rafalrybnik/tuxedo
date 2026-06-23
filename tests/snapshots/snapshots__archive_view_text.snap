@@ -2,7 +2,7 @@
 source: tests/snapshots.rs
 expression: buffer_to_text(&buf)
 ---
- FILTERS                   ▶▮◀ done.txt  •  0 tasks  •  sort:compl DETAIL                           
+ FILTERS                   ▶▮◀ done.md  •  0 tasks  •  sort:comple DETAIL                           
                                                                                                     
  PROJECTS                    no completed tasks yet                (no task)                        
    +work             4                                                                              

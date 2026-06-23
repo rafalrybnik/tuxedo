@@ -63,7 +63,7 @@ impl App {
 
         // Natural-language pre-pass. If the buffer reads like prose and the
         // parser extracted anything structured, rewrite the draft to canonical
-        // todo.txt and bail before saving — the user's *next* Enter saves the
+        // todo.md and bail before saving — the user's *next* Enter saves the
         // now-canonical form through the store.
         if nl::looks_like_natural_language(&text)
             && let Ok(today) = chrono::NaiveDate::parse_from_str(self.store.today(), "%Y-%m-%d")
@@ -191,7 +191,7 @@ impl App {
             UnarchiveOutcome::OutOfRange => {}
             UnarchiveOutcome::Aborted(r) => self.handle_reconcile_abort(r),
             UnarchiveOutcome::DoneReloaded => {
-                self.flash("done.txt changed on disk — reloaded");
+                self.flash("done.md changed on disk — reloaded");
                 self.recompute_visible();
                 self.clamp_cursor();
             }
@@ -199,7 +199,7 @@ impl App {
         }
     }
 
-    /// Permanently remove an archived task from `done.txt`.
+    /// Permanently remove an archived task from `done.md`.
     pub fn archive_delete(&mut self, archive_idx: usize) {
         match self.store.archive_delete(archive_idx) {
             ArchiveDeleteOutcome::Deleted => {
@@ -209,7 +209,7 @@ impl App {
             }
             ArchiveDeleteOutcome::OutOfRange => {}
             ArchiveDeleteOutcome::DoneReloaded => {
-                self.flash("done.txt changed on disk — reloaded");
+                self.flash("done.md changed on disk — reloaded");
                 self.recompute_visible();
                 self.clamp_cursor();
             }
@@ -227,7 +227,7 @@ mod tests {
         let mut app = build_app("old one\nold two\nold three\n");
         app.cursor = 2;
         let new_path = test_path();
-        let done = new_path.parent().expect("temp parent").join("done.txt");
+        let done = new_path.parent().expect("temp parent").join("done.md");
 
         app.open_file(new_path.clone(), done, "fresh task\n".into());
 
@@ -236,7 +236,7 @@ mod tests {
             "file_path must point at the new file"
         );
         assert_eq!(app.tasks().len(), 1, "tasks must reflect the new body");
-        assert_eq!(app.tasks()[0].raw, "fresh task");
+        assert_eq!(app.tasks()[0].raw, "- [ ] fresh task");
         assert_eq!(
             app.visible_indices().len(),
             1,
@@ -250,7 +250,7 @@ mod tests {
         let mut app = build_app("a +health\n");
         app.add_project_to_current("two words");
         assert_eq!(app.tasks()[0].projects, vec!["health"]);
-        assert_eq!(app.tasks()[0].raw, "a +health");
+        assert_eq!(app.tasks()[0].raw, "- [ ] a +health");
         assert_eq!(app.flash_active(), Some("invalid project name"));
     }
 
@@ -281,7 +281,7 @@ mod tests {
         let mut app = build_app("a @home\n");
         app.toggle_context_on_current("two words");
         assert_eq!(app.tasks()[0].contexts, vec!["home"]);
-        assert_eq!(app.tasks()[0].raw, "a @home");
+        assert_eq!(app.tasks()[0].raw, "- [ ] a @home");
         assert_eq!(app.flash_active(), Some("invalid context name"));
     }
 

@@ -1,5 +1,5 @@
 //! First-run welcome overlay: shown when `tuxedo` is launched with no target
-//! and no `./todo.txt` exists. Offers to create a `./todo.txt` here or open
+//! and no `./todo.md` exists. Offers to create a `./todo.md` here or open
 //! the bundled sample. Key handling lives in `handle_welcome` (main.rs);
 //! `q`/`Esc` quits without creating anything.
 
@@ -17,7 +17,7 @@ pub const WIDTH: u16 = 56;
 pub const HEIGHT: u16 = 16;
 
 const CHOICES: &[(&str, &str)] = &[
-    ("c", "create ./todo.txt here"),
+    ("c", "create ./todo.md here"),
     ("s", "open the sample"),
     ("q", "quit"),
 ];
@@ -50,7 +50,7 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
         lines.push(Line::raw(""));
     }
     lines.push(Line::from(Span::styled(
-        "  no todo.txt in this folder yet".to_string(),
+        "  no todo.md in this folder yet".to_string(),
         Style::default().fg(theme.fg),
     )));
     lines.push(Line::raw(""));
