@@ -48,7 +48,7 @@ pub use types::{
     AUTOCOMPLETE_CAP, AddOutcome, Density, FLASH_TTL, Filter, LEADER_WINDOW, Mode, SavedFilter,
     Sort, UNDO_LIMIT, View,
 };
-pub use visibility::GroupKey;
+pub use visibility::{GroupKey, TreeRow};
 
 pub struct App {
     /// The headless durable store: tasks, archive, history, persistence, and
@@ -108,6 +108,12 @@ pub struct App {
     saved_pick_idx: usize,
     pub command_palette: CommandPaletteState,
     pub jump: JumpState,
+    /// Collapsed directory areas (rel_dir paths) in tree mode; their tasks and
+    /// sub-areas are hidden from the list until expanded.
+    pub(crate) collapsed: std::collections::HashSet<std::path::PathBuf>,
+    /// Tree-mode render rows (directory headers + visible tasks), parallel to
+    /// the list view. Empty in single-file mode.
+    pub(crate) tree_rows: Vec<TreeRow>,
     /// Vertical scroll offset (rows from the top of the line list) for each
     /// view, keyed by `View::idx()`. Updated at render time via `Cell` so the
     /// renderer can keep the cursor row visible without taking `&mut self`.
@@ -183,6 +189,8 @@ impl App {
             saved_pick_idx: 0,
             command_palette: CommandPaletteState::default(),
             jump: JumpState::default(),
+            collapsed: std::collections::HashSet::new(),
+            tree_rows: Vec::new(),
             view_scroll: [Cell::new(0), Cell::new(0)],
             share: None,
             theme_pick_orig: 0,

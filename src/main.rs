@@ -927,6 +927,8 @@ fn resolve_normal_key(app: &mut App, key: KeyEvent, keybinds: &KeyBindings) -> O
         KeyCode::Char('v') => Action::ToggleVisual,
         KeyCode::Char(' ') => Action::ToggleSelected,
         KeyCode::Char('A') => Action::ArchiveCompleted,
+        KeyCode::Char('z') => Action::ToggleCollapse,
+        KeyCode::Char('Z') => Action::ExpandAll,
         // First 'f' arms the leader; a second 'f' (`ff`) opens the saved-
         // search picker. Mirrors the `fp`/`fc` pattern below.
         KeyCode::Char('f') => {
@@ -1085,6 +1087,8 @@ fn apply_action(app: &mut App, action: Action) {
             app.mode = Mode::Jump;
             app.draft_clear();
         }
+        Action::ToggleCollapse => app.toggle_collapse_current(),
+        Action::ExpandAll => app.expand_all(),
         Action::Undo => app.undo(),
         Action::ToggleVisual => {
             app.mode = if app.mode == Mode::Visual {

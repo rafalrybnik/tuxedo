@@ -4,7 +4,7 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 
-use crate::app::{App, GroupKey, ListDueBucket, Mode, View};
+use crate::app::{App, GroupKey, ListDueBucket, Mode, TreeRow, View};
 use crate::theme::Theme;
 use crate::ui::{header, keep_cursor_visible, task_row};
 
@@ -16,6 +16,22 @@ const INDENT: usize = 2;
 fn area_header<'a>(theme: &Theme, name: &str, indent: usize) -> Line<'a> {
     Line::from(vec![
         Span::raw(" ".repeat(indent)),
+        Span::styled(
+            format!("{name}/"),
+            Style::default()
+                .fg(theme.accent)
+                .add_modifier(Modifier::BOLD),
+        ),
+    ])
+}
+
+/// A collapsible subfolder header: `<indent>▾ name/` (expanded) or `▸` when
+/// collapsed.
+fn area_header_glyph<'a>(theme: &Theme, name: &str, indent: usize, collapsed: bool) -> Line<'a> {
+    let glyph = if collapsed { "▸ " } else { "▾ " };
+    Line::from(vec![
+        Span::raw(" ".repeat(indent)),
+        Span::styled(glyph, Style::default().fg(theme.dim)),
         Span::styled(
             format!("{name}/"),
             Style::default()
@@ -68,55 +84,77 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
             "   no tasks match".to_string(),
             Style::default().fg(theme.dim),
         )));
+    } else if tree {
+        // Tree mode: a hierarchy of directory headers (collapsible) drives the
+        // layout. The scan-root folder is the top header; each subfolder nests
+        // one indent level deeper, with tasks under their folder.
+        lines.push(area_header(theme, &app.tree_root_label(), 0));
+        for row in app.tree_rows() {
+            match row {
+                TreeRow::Header {
+                    depth,
+                    name,
+                    collapsed,
+                } => lines.push(area_header_glyph(
+                    theme,
+                    name,
+                    (depth + 1) * INDENT,
+                    *collapsed,
+                )),
+                TreeRow::Task { vis, depth } => {
+                    let abs = visible[*vis];
+                    let task = &app.tasks()[abs];
+                    let indent = (depth + 1) * INDENT + task.indent_cols();
+                    let opts = task_row::RowOpts {
+                        idx_label: *vis,
+                        cursor: *vis == app.cursor
+                            && app.mode != Mode::Help
+                            && app.mode != Mode::Settings,
+                        multi_mode: app.effective_mode() == Mode::Visual,
+                        multi_checked: app.selection.is_selected(abs),
+                        selected: app.selection.is_selected(abs),
+                        show_line_num: app.prefs.layout.line_num,
+                        match_term: if app.filter.search.is_empty() {
+                            None
+                        } else {
+                            Some(&app.filter.search)
+                        },
+                        today: app.today(),
+                        hidden_keys: &app.prefs.hidden_keys,
+                        area: None,
+                    };
+                    if *vis == app.cursor {
+                        cursor_line = Some(lines.len());
+                    }
+                    let avail = width.saturating_sub(indent).max(8);
+                    let mut wrapped = task_row::build_wrapped_lines(task, opts, theme, avail);
+                    let pad = " ".repeat(indent);
+                    for r in &mut wrapped {
+                        r.spans.insert(0, Span::raw(pad.clone()));
+                    }
+                    lines.extend(wrapped);
+                }
+            }
+        }
     } else {
+        // Single-file: priority/due section headers on group transitions, plus
+        // any in-file nesting indent on each task.
         let blank = super::density_blank_lines(app.prefs.density);
         let counts = group_counts(groups);
         let last = visible.len().saturating_sub(1);
         let mut last_group: Option<&GroupKey> = None;
 
-        // Tree mode groups tasks under a hierarchy of directory headers: the
-        // scan-root folder is the top header and each subfolder nests under it,
-        // one indent level deeper. (Always expanded.)
-        if tree {
-            lines.push(area_header(theme, &app.tree_root_label(), 0));
-        }
-        let mut prev_area: Vec<String> = Vec::new();
-
         for (i, (&abs, gk)) in visible.iter().zip(groups.iter()).enumerate() {
-            let dir_indent = if tree {
-                let comps = app.task_area_components(abs);
-                // Emit a header for each directory level new since the previous
-                // task. Depth `d` sits under the root header, so it indents by
-                // `(d + 1) * INDENT`.
-                let common = comps
-                    .iter()
-                    .zip(prev_area.iter())
-                    .take_while(|(a, b)| a == b)
-                    .count();
-                for (d, name) in comps.iter().enumerate().skip(common) {
-                    lines.push(area_header(theme, name, (d + 1) * INDENT));
+            if !matches!(gk, GroupKey::None) && last_group != Some(gk) {
+                if !lines.is_empty() {
+                    push_blanks(&mut lines, blank);
                 }
-                let depth = comps.len();
-                prev_area = comps;
-                (depth + 1) * INDENT
-            } else {
-                // Single-file: priority/due section headers on transitions.
-                // `GroupKey::None` (Sort::File) renders no header, so the layout
-                // is identical to the pre-grouping version.
-                if !matches!(gk, GroupKey::None) && last_group != Some(gk) {
-                    if !lines.is_empty() {
-                        push_blanks(&mut lines, blank);
-                    }
-                    lines.push(group_header(theme, gk, counts.lookup(gk)));
-                    last_group = Some(gk);
-                }
-                0
-            };
+                lines.push(group_header(theme, gk, counts.lookup(gk)));
+                last_group = Some(gk);
+            }
 
             let task = &app.tasks()[abs];
-            // Add the task's own nesting indent (a GFM sub-checklist item)
-            // on top of its directory indent, so subtasks sit under parents.
-            let indent = dir_indent + task.indent_cols();
+            let indent = task.indent_cols();
             let opts = task_row::RowOpts {
                 idx_label: i,
                 cursor: i == app.cursor && app.mode != Mode::Help && app.mode != Mode::Settings,
@@ -137,15 +175,15 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
                 cursor_line = Some(lines.len());
             }
             let avail = width.saturating_sub(indent).max(8);
-            let mut rows = task_row::build_wrapped_lines(task, opts, theme, avail);
+            let mut wrapped = task_row::build_wrapped_lines(task, opts, theme, avail);
             if indent > 0 {
                 let pad = " ".repeat(indent);
-                for row in &mut rows {
+                for row in &mut wrapped {
                     row.spans.insert(0, Span::raw(pad.clone()));
                 }
             }
-            lines.extend(rows);
-            if !tree && matches!(gk, GroupKey::None) && i != last {
+            lines.extend(wrapped);
+            if matches!(gk, GroupKey::None) && i != last {
                 for _ in 0..blank {
                     lines.push(Line::raw(""));
                 }

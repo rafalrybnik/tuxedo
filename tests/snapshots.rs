@@ -612,3 +612,49 @@ fn jump_overlay_lists_tasks_and_filters() {
         "a sample task should be listed:\n{text}"
     );
 }
+
+#[test]
+fn collapsing_a_folder_hides_its_tasks_but_keeps_its_header() {
+    let root = std::env::temp_dir().join(format!("tuxemdo-collapse-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(root.join("projects/web")).expect("mk dirs");
+    std::fs::write(root.join("todo.md"), "- [ ] top task +infra\n").expect("root todo");
+    std::fs::write(root.join("projects/web/todo.md"), "- [ ] ship it +api\n").expect("web todo");
+    let mut app = App::new_tree(root.clone(), "2026-05-06".to_string(), Config::default())
+        .expect("open tree");
+    app.prefs.density = Density::Compact;
+
+    assert!(
+        buffer_to_text(&render(&app)).contains("ship it"),
+        "task should start visible"
+    );
+
+    // Put the cursor on the nested task and collapse its folder.
+    let vis = app
+        .visible_indices()
+        .iter()
+        .position(|&abs| app.tasks()[abs].raw.contains("ship it"))
+        .expect("find nested task");
+    app.cursor = vis;
+    app.toggle_collapse_current();
+
+    let after = buffer_to_text(&render(&app));
+    assert!(
+        !after.contains("ship it"),
+        "collapsed folder's task should be hidden:\n{after}"
+    );
+    assert!(
+        after.contains("web/"),
+        "folder header should remain:\n{after}"
+    );
+    assert!(after.contains('▸'), "collapsed glyph should show:\n{after}");
+
+    // Expand all brings it back.
+    app.expand_all();
+    assert!(
+        buffer_to_text(&render(&app)).contains("ship it"),
+        "expand_all should restore it"
+    );
+
+    let _ = std::fs::remove_dir_all(&root);
+}

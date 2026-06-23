@@ -1,6 +1,26 @@
+use std::path::PathBuf;
+
 use super::App;
 use super::types::{Sort, View};
 use crate::core::filter::{self, ListDueBucket};
+
+/// A row in the tree-mode list: a directory header, or a task referenced by its
+/// index into `visible_cache`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TreeRow {
+    Header {
+        /// Directory depth (0 = directly under the scan root).
+        depth: usize,
+        name: String,
+        collapsed: bool,
+    },
+    Task {
+        /// Index into `visible_cache`.
+        vis: usize,
+        /// Area depth of the task (for indentation).
+        depth: usize,
+    },
+}
 
 /// One entry per visible row, parallel to `visible_cache`. Renderers detect
 /// group transitions by comparing successive entries; under `Sort::File` every
@@ -56,6 +76,16 @@ impl App {
 
         filter::sort_by_prefs(&mut idxs, tasks, self.prefs.sort);
 
+        if self.is_tree_mode() {
+            // Tree mode: directory headers (with collapse) drive the layout, so
+            // group keys are unused; tasks under a collapsed area are dropped.
+            let (visible, rows) = self.build_tree_rows(&idxs);
+            self.visible_groups = vec![GroupKey::None; visible.len()];
+            self.visible_cache = visible;
+            self.tree_rows = rows;
+            return;
+        }
+
         let groups: Vec<GroupKey> = match self.prefs.sort {
             Sort::File => vec![GroupKey::None; idxs.len()],
             Sort::Priority => idxs
@@ -69,6 +99,92 @@ impl App {
         };
         self.visible_groups = groups;
         self.visible_cache = idxs;
+        self.tree_rows.clear();
+    }
+
+    /// Walk filtered tasks (file order) into `(visible_cache, tree_rows)`:
+    /// emit a header on each new directory level and a task row for each task,
+    /// but when a directory is collapsed emit only its `▸` header and skip its
+    /// whole subtree (those tasks never enter `visible_cache`).
+    fn build_tree_rows(&self, idxs: &[usize]) -> (Vec<usize>, Vec<TreeRow>) {
+        let mut visible: Vec<usize> = Vec::new();
+        let mut rows: Vec<TreeRow> = Vec::new();
+        let mut prev: Vec<String> = Vec::new();
+        let mut skip_under: Option<Vec<String>> = None;
+
+        for &i in idxs {
+            let comps = self.task_area_components(i);
+            if let Some(s) = &skip_under {
+                if comps.len() >= s.len() && comps[..s.len()] == s[..] {
+                    continue; // hidden inside a collapsed subtree
+                }
+                skip_under = None;
+            }
+            let common = comps
+                .iter()
+                .zip(prev.iter())
+                .take_while(|(a, b)| a == b)
+                .count();
+            let mut entered_collapsed = false;
+            for d in common..comps.len() {
+                let path: PathBuf = comps[..=d].iter().collect();
+                let collapsed = self.collapsed.contains(&path);
+                rows.push(TreeRow::Header {
+                    depth: d,
+                    name: comps[d].clone(),
+                    collapsed,
+                });
+                if collapsed {
+                    skip_under = Some(comps[..=d].to_vec());
+                    entered_collapsed = true;
+                    break;
+                }
+            }
+            let depth = comps.len();
+            prev = comps;
+            if entered_collapsed {
+                continue;
+            }
+            rows.push(TreeRow::Task {
+                vis: visible.len(),
+                depth,
+            });
+            visible.push(i);
+        }
+        (visible, rows)
+    }
+
+    pub fn tree_rows(&self) -> &[TreeRow] {
+        &self.tree_rows
+    }
+
+    /// Collapse (or expand) the directory of the task under the cursor. Root
+    /// tasks have no directory to collapse.
+    pub fn toggle_collapse_current(&mut self) {
+        if !self.is_tree_mode() {
+            return;
+        }
+        let Some(abs) = self.cur_abs() else { return };
+        let area = self.store.area(abs);
+        if area.as_os_str().is_empty() {
+            self.flash("root tasks have no folder to collapse");
+            return;
+        }
+        if !self.collapsed.remove(&area) {
+            self.collapsed.insert(area);
+        }
+        self.recompute_visible();
+        self.clamp_cursor();
+    }
+
+    /// Expand every collapsed directory.
+    pub fn expand_all(&mut self) {
+        if self.collapsed.is_empty() {
+            return;
+        }
+        self.collapsed.clear();
+        self.recompute_visible();
+        self.clamp_cursor();
     }
 
     fn rebuild_archive_cache(&mut self) {
