@@ -93,7 +93,12 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
             if i == app.cursor {
                 cursor_line = Some(lines.len());
             }
-            lines.push(task_row::build_line(task, opts, theme));
+            lines.extend(task_row::build_wrapped_lines(
+                task,
+                opts,
+                theme,
+                body_area.width as usize,
+            ));
             if matches!(gk, GroupKey::None) && i != last {
                 for _ in 0..blank {
                     lines.push(Line::raw(""));

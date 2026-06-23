@@ -5,18 +5,18 @@ expression: buffer_to_text(&buf)
  FILTERS                   ▶▮◀ /tmp/tuxemdo-snapshot.txt  •  4 tas DETAIL                           
                                                                                                     
  PROJECTS                  (1)  PRIORITY A  ────────────────────── priority  (A)                    
- ▸ +work             4      1 ▸ (A) Finish Q2 board deck +work @la created   2026-05-01             
-   +health           3     (2)  PRIORITY B  ────────────────────── due       2026-05-06  today      
-   +finance          2      2   (B) Review pull requests for auth  projects  +work                  
-   +home             1      3   (B) Draft hiring rubric for senior contexts  @laptop                
-   +learning         1     (1)  NO PRIORITY  ─────────────────────                                  
-   +personal         1      4       Migrate analytics to new pipel RAW                              
-   +travel           1                                                                              
-                                                                   - [ ] (A) 2026-05-01 Finish Q2   
- CONTEXTS                                                          board deck +work @laptop         
-   @errands          4                                             due:2026-05-06                   
-   @home             4                                                                              
-   @laptop           4                                                                              
+ ▸ +work             4      1 ▸ (A) Finish Q2 board deck +work     created   2026-05-01             
+   +health           3              @laptop due:2026-05-06         due       2026-05-06  today      
+   +finance          2     (2)  PRIORITY B  ────────────────────── projects  +work                  
+   +home             1      2   (B) Review pull requests for auth  contexts  @laptop                
+   +learning         1              refactor +work @laptop                                          
+   +personal         1              due:2026-05-07                 RAW                              
+   +travel           1      3   (B) Draft hiring rubric for senior                                  
+                                    eng +work @laptop              - [ ] (A) 2026-05-01 Finish Q2   
+ CONTEXTS                  (1)  NO PRIORITY  ───────────────────── board deck +work @laptop         
+   @errands          4      4       Migrate analytics to new       due:2026-05-06                   
+   @home             4              pipeline +work @laptop                                          
+   @laptop           4              due:2026-05-15                                                  
    @phone            3                                                                              
                                                                                                     
                                                                                                     

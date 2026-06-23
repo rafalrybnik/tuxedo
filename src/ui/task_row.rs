@@ -25,7 +25,10 @@ pub struct RowOpts<'a> {
     pub area: Option<&'a str>,
 }
 
-pub fn build_line<'a>(task: &'a Task, opts: RowOpts<'a>, theme: &Theme) -> Line<'a> {
+/// Build the styled spans for a task row plus the row-level style (cursor /
+/// selection background). Split out from [`build_line`] so the list view can
+/// either render one line or wrap the spans across several.
+fn build_spans<'a>(task: &'a Task, opts: RowOpts<'a>, theme: &Theme) -> (Vec<Span<'a>>, Style) {
     let mut spans: Vec<Span<'a>> = Vec::new();
 
     if opts.show_line_num {
@@ -143,7 +146,108 @@ pub fn build_line<'a>(task: &'a Task, opts: RowOpts<'a>, theme: &Theme) -> Line<
     } else {
         Style::default()
     };
-    Line::from(spans).style(line_style)
+    (spans, line_style)
+}
+
+/// Render a task as a single line (used by the archive view and tests).
+pub fn build_line<'a>(task: &'a Task, opts: RowOpts<'a>, theme: &Theme) -> Line<'a> {
+    let (spans, style) = build_spans(task, opts, theme);
+    Line::from(spans).style(style)
+}
+
+/// Render a task wrapped to `width` columns: long rows break at token
+/// boundaries, with continuation rows indented to align under the body. One
+/// `Line` per visual row, so the list's per-row scroll/cursor maths is exact.
+pub(crate) fn build_wrapped_lines<'a>(
+    task: &'a Task,
+    opts: RowOpts<'a>,
+    theme: &Theme,
+    width: usize,
+) -> Vec<Line<'a>> {
+    let (spans, style) = build_spans(task, opts, theme);
+    // Width of the fixed prefix (optional line number, multi-select box, status
+    // glyph, priority box) so wrapped text aligns under the first body token.
+    let prefix =
+        (if opts.show_line_num { 4 } else { 0 }) + (if opts.multi_mode { 4 } else { 0 }) + 6;
+    let indent = if width == 0 || prefix + 4 >= width {
+        0
+    } else {
+        prefix
+    };
+    wrap_spans(spans, width, indent, style)
+}
+
+/// Greedy word-wrap over styled spans. `build_spans` already emits spans at
+/// token / whitespace granularity, so breaking between spans wraps at word
+/// boundaries; a single span wider than the line budget is hard-split.
+fn wrap_spans<'a>(
+    spans: Vec<Span<'a>>,
+    width: usize,
+    indent: usize,
+    style: Style,
+) -> Vec<Line<'a>> {
+    if width == 0 {
+        return vec![Line::from(spans).style(style)];
+    }
+    let mut work: std::collections::VecDeque<Span<'a>> = spans.into();
+    let mut rows: Vec<Vec<Span<'a>>> = Vec::new();
+    let mut cur: Vec<Span<'a>> = Vec::new();
+    let mut cur_w = 0usize;
+    // Continuation rows lose `indent` columns to the alignment pad.
+    let budget = |cont: bool| {
+        if cont {
+            width.saturating_sub(indent).max(1)
+        } else {
+            width
+        }
+    };
+    while let Some(span) = work.pop_front() {
+        let cont = !rows.is_empty();
+        let b = budget(cont);
+        let is_ws = span.content.chars().all(char::is_whitespace);
+        // Drop whitespace that would otherwise lead a continuation row.
+        if cur_w == 0 && cont && is_ws {
+            continue;
+        }
+        let clen = span.content.chars().count();
+        if cur_w + clen <= b {
+            cur_w += clen;
+            cur.push(span);
+            continue;
+        }
+        if cur_w > 0 {
+            // Flush the row and retry this span at the start of the next one.
+            rows.push(std::mem::take(&mut cur));
+            cur_w = 0;
+            work.push_front(span);
+            continue;
+        }
+        // Fresh row and the span alone exceeds the budget: hard-split it.
+        let st = span.style;
+        let chars: Vec<char> = span.content.chars().collect();
+        let head: String = chars[..b].iter().collect();
+        let tail: String = chars[b..].iter().collect();
+        cur.push(Span::styled(head, st));
+        rows.push(std::mem::take(&mut cur));
+        cur_w = 0;
+        work.push_front(Span::styled(tail, st));
+    }
+    if !cur.is_empty() {
+        rows.push(cur);
+    }
+    if rows.is_empty() {
+        rows.push(Vec::new());
+    }
+    let pad = " ".repeat(indent);
+    rows.into_iter()
+        .enumerate()
+        .map(|(i, mut row)| {
+            if i > 0 && indent > 0 {
+                row.insert(0, Span::raw(pad.clone()));
+            }
+            Line::from(row).style(style)
+        })
+        .collect()
 }
 
 fn push_token_spans<'a>(
