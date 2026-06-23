@@ -561,3 +561,38 @@ fn tree_mode_groups_tasks_under_indented_directory_headers() {
 
     let _ = std::fs::remove_dir_all(&root);
 }
+
+#[test]
+fn nested_subtasks_render_more_indented_than_parent() {
+    // A tab-indented child is a GFM sub-checklist item; it should render
+    // deeper than its parent in the list (single-file mode here).
+    // Cursor stays on the first task (CURSORROW); PARENT and CHILD are both
+    // non-cursor, so their glyphs match and the only column difference is the
+    // child's nesting indent.
+    let body = "- [ ] CURSORROW\n- [ ] PARENT\n\t- [ ] CHILD\n";
+    let path = std::env::temp_dir().join(format!("tuxemdo-indent-{}.md", std::process::id()));
+    std::fs::write(&path, body).expect("seed file");
+    let mut app = App::new(
+        path.clone(),
+        body.to_string(),
+        "2026-05-06".to_string(),
+        Config::default(),
+    );
+    app.prefs.density = Density::Compact;
+    let text = buffer_to_text(&render(&app));
+
+    let col = |needle: &str| -> usize {
+        let line = text
+            .lines()
+            .find(|l| l.contains(needle))
+            .unwrap_or_else(|| panic!("no line contains {needle:?}:\n{text}"));
+        line.find(needle).expect("contains => find")
+    };
+    assert!(
+        col("CHILD") > col("PARENT"),
+        "nested subtask should render deeper than its parent (P@{} C@{}):\n{text}",
+        col("PARENT"),
+        col("CHILD"),
+    );
+    let _ = std::fs::remove_file(&path);
+}

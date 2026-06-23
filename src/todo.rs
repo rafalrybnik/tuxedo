@@ -39,6 +39,12 @@ impl std::fmt::Display for TagError {
 #[derive(Debug, Clone)]
 pub struct Task {
     pub raw: String,
+    /// Leading whitespace (tabs/spaces) of the source line — a GFM nested
+    /// checklist item. Kept separate from `raw` so all field parsing and
+    /// mutations work on the checkbox-led text, while `serialize` restores the
+    /// exact indentation (no flattening on save). `indent_cols` maps it to a
+    /// render width.
+    pub indent: String,
     pub done: bool,
     pub done_date: Option<String>,
     pub priority: Option<char>,
@@ -61,6 +67,9 @@ pub fn parse_line(raw: &str) -> Result<Task, ParseError> {
     if line.is_empty() {
         return Err(ParseError::Empty);
     }
+    // Capture leading whitespace (nesting indent) before trimming it away for
+    // field parsing; it is restored verbatim by `serialize`.
+    let indent = raw[..raw.len() - raw.trim_start().len()].to_string();
     let mut rest: &str = line;
     let mut done = false;
     let mut done_date: Option<String> = None;
@@ -111,6 +120,7 @@ pub fn parse_line(raw: &str) -> Result<Task, ParseError> {
 
     Ok(Task {
         raw,
+        indent,
         done,
         done_date,
         priority,
@@ -233,6 +243,7 @@ pub fn parse_file(s: &str) -> Vec<Task> {
 pub fn serialize(tasks: &[Task]) -> String {
     let mut out = String::new();
     for t in tasks {
+        out.push_str(&t.indent);
         out.push_str(&t.raw);
         out.push('\n');
     }
@@ -248,6 +259,15 @@ pub fn write_atomic(path: &Path, body: &str) -> std::io::Result<()> {
 }
 
 impl Task {
+    /// Render width of this task's nesting indent: tabs count as two columns,
+    /// other whitespace as one. Zero for a top-level task.
+    pub fn indent_cols(&self) -> usize {
+        self.indent
+            .chars()
+            .map(|c| if c == '\t' { 2 } else { 1 })
+            .sum()
+    }
+
     /// Mark this task complete as of `today`. No-op if already done.
     /// The serialized line follows the todo.md convention: `- [x] DONE CREATED
     /// BODY`, where `BODY` has had any leading checkbox/priority/created-date
@@ -369,7 +389,11 @@ impl Task {
     /// Re-parse `raw` and overwrite self. Only mutates on success, so a
     /// failed parse leaves the task untouched.
     fn replace_from_raw(&mut self, raw: &str) -> Result<(), ParseError> {
+        // Mutations rewrite the task text but never the nesting level, so the
+        // existing indent is carried across the re-parse.
+        let indent = std::mem::take(&mut self.indent);
         *self = parse_line(raw)?;
+        self.indent = indent;
         Ok(())
     }
 }
@@ -625,5 +649,35 @@ mod tests {
         for (a, b) in parsed.iter().zip(reparsed.iter()) {
             assert_eq!(a.raw, b.raw);
         }
+    }
+
+    #[test]
+    fn preserves_nesting_indentation_round_trip() {
+        let body = "- [ ] parent +proj\n\t- [ ] child @ctx\n    - [x] 2026-05-01 grandchild\n";
+        let tasks = parse_file(body);
+        assert_eq!(tasks.len(), 3);
+        // Indent is captured separately; raw stays checkbox-led and indent-free.
+        assert_eq!(tasks[1].indent, "\t");
+        assert_eq!(tasks[1].raw, "- [ ] child @ctx");
+        assert!(!tasks[1].done);
+        assert_eq!(tasks[1].contexts, vec!["ctx"]);
+        // Tabs count as two render columns, spaces as one.
+        assert_eq!(tasks[1].indent_cols(), 2);
+        assert_eq!(tasks[2].indent_cols(), 4);
+        // Serialising restores the exact indentation — no flattening on save.
+        assert_eq!(serialize(&tasks), body);
+    }
+
+    #[test]
+    fn completing_a_nested_task_keeps_its_indent() {
+        let mut t = parse_line("\t- [ ] child").unwrap();
+        t.mark_done("2026-05-02").unwrap();
+        assert!(t.done);
+        assert_eq!(t.indent, "\t");
+        assert!(t.raw.starts_with("- [x] "));
+        // The serialized line keeps the tab indent and ends with the body.
+        let line = serialize(std::slice::from_ref(&t));
+        assert!(line.starts_with("\t- [x] "), "got {line:?}");
+        assert!(line.ends_with("child\n"), "got {line:?}");
     }
 }

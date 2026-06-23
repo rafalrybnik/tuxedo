@@ -83,7 +83,7 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
         let mut prev_area: Vec<String> = Vec::new();
 
         for (i, (&abs, gk)) in visible.iter().zip(groups.iter()).enumerate() {
-            let indent = if tree {
+            let dir_indent = if tree {
                 let comps = app.task_area_components(abs);
                 // Emit a header for each directory level new since the previous
                 // task. Depth `d` sits under the root header, so it indents by
@@ -114,6 +114,9 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
             };
 
             let task = &app.tasks()[abs];
+            // Add the task's own nesting indent (a GFM sub-checklist item)
+            // on top of its directory indent, so subtasks sit under parents.
+            let indent = dir_indent + task.indent_cols();
             let opts = task_row::RowOpts {
                 idx_label: i,
                 cursor: i == app.cursor && app.mode != Mode::Help && app.mode != Mode::Settings,
