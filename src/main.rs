@@ -62,14 +62,20 @@ fn main() -> Result<()> {
         }
     };
 
-    // Tree mode: `tuxemdo --root <dir>` / `-r <dir>` / `tree <dir>` aggregates
-    // every todo.md under <dir> (default: the current directory).
+    // Tree mode aggregates every todo.md under a root directory. It is the
+    // DEFAULT: a bare `tuxemdo` (or a directory argument) opens the current /
+    // given directory as a tree. `--root`/`-r`/`tree [DIR]` is the explicit
+    // form. A FILE argument still opens that single file (handled below).
     let tree_root: Option<std::path::PathBuf> = match arg.as_deref() {
         Some("--root") | Some("-r") | Some("tree") => Some(
             argv.get(1)
                 .map(std::path::PathBuf::from)
                 .unwrap_or_else(|| std::path::PathBuf::from(".")),
         ),
+        None => Some(std::path::PathBuf::from(".")),
+        Some(s) if !s.starts_with('-') && std::path::Path::new(s).is_dir() => {
+            Some(std::path::PathBuf::from(s))
+        }
         _ => None,
     };
 
@@ -148,18 +154,17 @@ fn main() -> Result<()> {
 }
 
 fn print_usage() {
-    println!("usage: tuxemdo [FILE]                 launch the TUI on one file");
-    println!("       tuxemdo --root [DIR]           tree mode: every todo.md under DIR");
+    println!("usage: tuxemdo [DIR]                  tree mode (default: current dir)");
+    println!("       tuxemdo FILE                   open a single todo.md");
     println!("       tuxemdo <command> [args]       run a one-shot command");
     println!("       tuxemdo update");
     println!();
-    println!("Without FILE or a command, opens ./todo.md if present; otherwise");
-    println!("prompts to create ./todo.md here or open a sample todo.md, in");
-    println!("the interactive TUI.");
+    println!("With no argument (or a directory), tuxemdo opens TREE MODE: it");
+    println!("aggregates every todo.md in that directory tree into one view, tags");
+    println!("each task with its source area, and writes edits/completions back to");
+    println!("each task's own file. `--root [DIR]` is the explicit form.");
     println!();
-    println!("Tree mode (`--root [DIR]`, default DIR=.) aggregates every todo.md");
-    println!("in the directory tree into one view; each task is tagged with its");
-    println!("source area, and edits/completions are written back to its own file.");
+    println!("Pass a FILE to work on just that single todo.md instead.");
     println!();
     println!("Inside the TUI, press `s` to expose a phone-friendly capture");
     println!("endpoint on your LAN and show a QR code for it. Captures land");
