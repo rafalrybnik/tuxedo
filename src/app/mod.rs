@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, TryRecvError};
 
 use crate::config::Config;
-use crate::core::Store;
+use crate::core::TreeStore;
 use crate::core::outcome::{DrainReport, Reconcile};
 use crate::serve::{self, ShareInfo};
 use crate::theme::{self, Theme};
@@ -53,7 +53,7 @@ pub struct App {
     /// `today`. Mutate via the methods on `App` (which map store outcomes to
     /// flash messages and refresh the visible cache); read via `tasks()`,
     /// `archive()`, `task_raw()`, etc.
-    pub(crate) store: Store,
+    pub(crate) store: TreeStore,
     /// Crate-private: writing here would not invalidate `visible_cache`.
     /// Read via `view()`; mutate via `set_view()`.
     pub(crate) view: View,
@@ -120,9 +120,10 @@ pub struct App {
 }
 
 impl App {
-    /// Construct an App whose archive is the sibling `done.md` of `file_path`.
+    /// Construct an App over a single `todo.md`, archiving to its sibling
+    /// `done.md`.
     pub fn new(file_path: PathBuf, body: String, today: String, cfg: Config) -> Self {
-        let store = Store::new(file_path.clone(), body, today);
+        let store = TreeStore::open_file(file_path.clone(), body, today);
         Self::from_store(store, file_path, cfg)
     }
 
@@ -134,11 +135,18 @@ impl App {
         today: String,
         cfg: Config,
     ) -> Self {
-        let store = Store::new_with_done(file_path.clone(), done_path, body, today);
+        let store = TreeStore::open_file_with_done(file_path.clone(), done_path, body, today);
         Self::from_store(store, file_path, cfg)
     }
 
-    fn from_store(store: Store, file_path: PathBuf, cfg: Config) -> Self {
+    /// Construct an App in tree mode: aggregate every `todo.md` under `root`
+    /// into one view, with edits routed back to each task's source file.
+    pub fn new_tree(root: PathBuf, today: String, cfg: Config) -> std::io::Result<Self> {
+        let store = TreeStore::open(&root, today)?;
+        Ok(Self::from_store(store, root, cfg))
+    }
+
+    fn from_store(store: TreeStore, file_path: PathBuf, cfg: Config) -> Self {
         // Read saved filters before `cfg` is moved into `Prefs::from_config`.
         let saved_filters = cfg
             .filters
@@ -187,7 +195,7 @@ impl App {
     /// chosen one. Resets the cursor and recomputes the visible cache.
     pub fn open_file(&mut self, file_path: PathBuf, done_path: PathBuf, body: String) {
         let today = self.store.today().to_string();
-        self.store = Store::new_with_done(file_path.clone(), done_path, body, today);
+        self.store = TreeStore::open_file_with_done(file_path.clone(), done_path, body, today);
         self.file_path = file_path;
         self.cursor = 0;
         self.recompute_visible();

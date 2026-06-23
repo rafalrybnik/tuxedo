@@ -9,11 +9,12 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
-use super::Store;
 use super::outcome::{
-    BulkCompleteOutcome, BulkDeleteOutcome, CompleteOutcome, DeleteOutcome, EditOutcome,
-    PriorityOutcome, Reconcile, TagOutcome, UndoOutcome,
+    AddOutcome, ArchiveDeleteOutcome, ArchiveOutcome, BulkCompleteOutcome, BulkDeleteOutcome,
+    CompleteOutcome, DeleteOutcome, DrainReport, EditOutcome, PriorityOutcome, Reconcile,
+    TagOutcome, UnarchiveOutcome, UndoOutcome,
 };
+use super::{Archive, Store};
 use crate::todo::Task;
 
 /// Directory names skipped while discovering `todo.md` files (besides any
@@ -63,6 +64,59 @@ impl TreeStore {
         };
         ts.rebuild();
         Ok(ts)
+    }
+
+    /// Single-file mode: wrap exactly one `todo.md` (the degenerate N=1 tree).
+    /// Archive/inbox behave exactly as the single-file `Store` did.
+    pub fn open_file(file: PathBuf, body: String, today: String) -> Self {
+        let root = file.parent().map(Path::to_path_buf).unwrap_or_default();
+        let store = Store::new(file, body, today.clone());
+        let mut ts = TreeStore {
+            root,
+            stores: vec![store],
+            agg: Vec::new(),
+            map: Vec::new(),
+            undo_order: Vec::new(),
+            today,
+        };
+        ts.rebuild();
+        ts
+    }
+
+    /// Single-file mode with an explicit `done.md` path (e.g. a `DONE_FILE`
+    /// env var that isn't a sibling of the todo file).
+    pub fn open_file_with_done(
+        file: PathBuf,
+        done_path: PathBuf,
+        body: String,
+        today: String,
+    ) -> Self {
+        let root = file.parent().map(Path::to_path_buf).unwrap_or_default();
+        let store = Store::new_with_done(file, done_path, body, today.clone());
+        let mut ts = TreeStore {
+            root,
+            stores: vec![store],
+            agg: Vec::new(),
+            map: Vec::new(),
+            undo_order: Vec::new(),
+            today,
+        };
+        ts.rebuild();
+        ts
+    }
+
+    /// Whether this is a single-file tree (N=1) — used by the UI to keep
+    /// archive/inbox behaviour identical to the old single-file mode.
+    pub fn is_single_file(&self) -> bool {
+        self.stores.len() == 1
+    }
+
+    /// Test-only: seed the primary store's archive directly (the archive-view
+    /// tests inject completed tasks without going through disk).
+    #[cfg(test)]
+    pub(crate) fn set_primary_archive(&mut self, archive: Archive) {
+        let si = self.root_store();
+        self.stores[si].archive = archive;
     }
 
     fn rebuild(&mut self) {
@@ -186,12 +240,78 @@ impl TreeStore {
     }
 
     /// Add a new task to the root `todo.md`.
-    pub fn add_finalized(&mut self, text: &str) -> super::outcome::AddOutcome {
+    pub fn add_finalized(&mut self, text: &str) -> AddOutcome {
         let si = self.root_store();
         let out = self.stores[si].add_finalized(text);
         self.undo_order.push(si);
         self.rebuild();
         out
+    }
+
+    // -- archive / inbox --
+    //
+    // The archive *view* and inbox capture are single-file concerns. For N=1
+    // they delegate to the one store (identical to the old behaviour). For a
+    // multi-file tree, `archive_completed` fans out across every file; the
+    // archive-browsing view and inbox are gated to single-file mode by the UI.
+
+    /// The archive of the primary (root) file, for the archive-browsing view.
+    pub fn archive(&self) -> &Archive {
+        self.stores[self.root_store()].archive()
+    }
+
+    /// Pump the primary file's archive loader / external-change poll.
+    pub fn poll_archive(&mut self) -> bool {
+        let si = self.root_store();
+        self.stores[si].poll_archive()
+    }
+
+    /// Move completed tasks to `done.md`. For a tree, every file archives into
+    /// its own sibling `done.md`; counts are summed.
+    pub fn archive_completed(&mut self) -> ArchiveOutcome {
+        let mut total = 0;
+        for store in &mut self.stores {
+            match store.archive_completed() {
+                ArchiveOutcome::Archived { count } => total += count,
+                ArchiveOutcome::Nothing => {}
+                ArchiveOutcome::Aborted(r) => {
+                    self.rebuild();
+                    return ArchiveOutcome::Aborted(r);
+                }
+                ArchiveOutcome::Error(e) => {
+                    self.rebuild();
+                    return ArchiveOutcome::Error(e);
+                }
+            }
+        }
+        self.rebuild();
+        if total == 0 {
+            ArchiveOutcome::Nothing
+        } else {
+            ArchiveOutcome::Archived { count: total }
+        }
+    }
+
+    /// Restore an archived task (primary file's archive only).
+    pub fn unarchive(&mut self, archive_idx: usize) -> UnarchiveOutcome {
+        let si = self.root_store();
+        let out = self.stores[si].unarchive(archive_idx);
+        self.rebuild();
+        out
+    }
+
+    /// Permanently delete an archived task (primary file's archive only).
+    pub fn archive_delete(&mut self, archive_idx: usize) -> ArchiveDeleteOutcome {
+        let si = self.root_store();
+        self.stores[si].archive_delete(archive_idx)
+    }
+
+    /// Drain the primary file's sibling `inbox.md`.
+    pub fn drain_inbox(&mut self) -> DrainReport {
+        let si = self.root_store();
+        let report = self.stores[si].drain_inbox();
+        self.rebuild();
+        report
     }
 
     // -- bulk mutations: group globals by store, fan out, merge. --

@@ -163,13 +163,13 @@ mod tests {
     fn archive_indices_point_into_archive_tasks() {
         let mut app = build_app("a\n");
         let path = app.archive().path().to_path_buf();
-        app.store.archive = crate::app::Archive::for_test(
+        app.store.set_primary_archive(crate::app::Archive::for_test(
             crate::todo::parse_file(
                 "- [x] 2026-05-01 2026-04-01 first\n- [x] 2026-05-02 2026-04-02 second\n",
             ),
             String::new(),
             path,
-        );
+        ));
         app.set_view(View::Archive);
         let idxs = app.visible_indices();
         assert_eq!(idxs.len(), 2);
@@ -268,13 +268,13 @@ mod tests {
     fn archive_visible_groups_are_done_date_desc() {
         let mut app = build_app("a\n");
         let path = app.archive().path().to_path_buf();
-        app.store.archive = crate::app::Archive::for_test(
+        app.store.set_primary_archive(crate::app::Archive::for_test(
             crate::todo::parse_file(
                 "- [x] 2026-04-01 2026-03-01 older\n- [x] 2026-05-02 2026-04-02 newer\n",
             ),
             String::new(),
             path,
-        );
+        ));
         app.set_view(View::Archive);
         let groups = app.visible_groups();
         assert_eq!(groups.len(), 2);

@@ -28,9 +28,8 @@ fn main() -> Result<()> {
         std::process::exit(code);
     }
     let arg = argv.first().cloned();
-    // `start_mode` is `Welcome` only on a true first run (no target and no
-    // ./todo.md); every other entry opens straight into Normal.
-    let (path, start_mode) = match arg.as_deref() {
+    // Options that print and exit, valid regardless of mode.
+    match arg.as_deref() {
         Some("--help") | Some("-h") => {
             print_usage();
             return Ok(());
@@ -43,31 +42,9 @@ fn main() -> Result<()> {
             update::run()?;
             return Ok(());
         }
-        Some("--sample") => (cli::sample_path()?, Mode::Normal),
-        Some(s) if s.starts_with('-') => {
-            eprintln!("tuxemdo: unknown option: {s}");
-            eprintln!("try `tuxemdo --help`");
-            std::process::exit(2);
-        }
-        _ => match cli::resolve_target(arg)? {
-            cli::Target::File(p) => (p, Mode::Normal),
-            // Open into the welcome prompt backed by an as-yet-uncreated
-            // ./todo.md; `handle_welcome` materializes the file the user picks.
-            cli::Target::FirstRun => (std::path::PathBuf::from("todo.md"), Mode::Welcome),
-        },
-    };
-    // A freshly-created file is empty; otherwise read it. We accept NotFound
-    // (race with deletion between resolve_path and now) as "empty file" but
-    // refuse to silently swallow other IO errors — an unreadable or non-UTF-8
-    // file would otherwise present as an empty editor that, on first save,
-    // overwrites the user's data.
-    let body = match std::fs::read_to_string(&path) {
-        Ok(s) => s,
-        Err(e) if e.kind() == io::ErrorKind::NotFound => String::new(),
-        Err(e) => {
-            return Err(e).with_context(|| format!("reading {}", path.display()));
-        }
-    };
+        _ => {}
+    }
+
     let today = chrono::Local::now().format("%Y-%m-%d").to_string();
     let cfg = Config::load();
     let keybinds = KeyBindings::load();
@@ -84,8 +61,54 @@ fn main() -> Result<()> {
             Vec::new()
         }
     };
-    let done = cli::done_path(&path);
-    let mut app_state = App::new_with_done(path.clone(), done, body, today, cfg);
+
+    // Tree mode: `tuxemdo --root <dir>` / `-r <dir>` / `tree <dir>` aggregates
+    // every todo.md under <dir> (default: the current directory).
+    let tree_root: Option<std::path::PathBuf> = match arg.as_deref() {
+        Some("--root") | Some("-r") | Some("tree") => Some(
+            argv.get(1)
+                .map(std::path::PathBuf::from)
+                .unwrap_or_else(|| std::path::PathBuf::from(".")),
+        ),
+        _ => None,
+    };
+
+    // `start_mode` is `Welcome` only on a true first run (no target and no
+    // ./todo.md); every other entry — and all of tree mode — opens into Normal.
+    let (mut app_state, path, start_mode) = if let Some(root) = tree_root {
+        let app = App::new_tree(root.clone(), today, cfg)
+            .with_context(|| format!("scanning {}", root.display()))?;
+        (app, root, Mode::Normal)
+    } else {
+        let (path, start_mode) = match arg.as_deref() {
+            Some("--sample") => (cli::sample_path()?, Mode::Normal),
+            Some(s) if s.starts_with('-') => {
+                eprintln!("tuxemdo: unknown option: {s}");
+                eprintln!("try `tuxemdo --help`");
+                std::process::exit(2);
+            }
+            _ => match cli::resolve_target(arg)? {
+                cli::Target::File(p) => (p, Mode::Normal),
+                // Open into the welcome prompt backed by an as-yet-uncreated
+                // ./todo.md; `handle_welcome` materializes the chosen file.
+                cli::Target::FirstRun => (std::path::PathBuf::from("todo.md"), Mode::Welcome),
+            },
+        };
+        // A freshly-created file is empty; otherwise read it. NotFound (race
+        // with deletion) is "empty file"; other IO errors are refused so an
+        // unreadable file can't present as an empty editor that overwrites
+        // data on first save.
+        let body = match std::fs::read_to_string(&path) {
+            Ok(s) => s,
+            Err(e) if e.kind() == io::ErrorKind::NotFound => String::new(),
+            Err(e) => {
+                return Err(e).with_context(|| format!("reading {}", path.display()));
+            }
+        };
+        let done = cli::done_path(&path);
+        let app = App::new_with_done(path.clone(), done, body, today, cfg);
+        (app, path, start_mode)
+    };
     app_state.config_path = Config::path();
     app_state.mode = start_mode;
     // Surface theme-load problems on the first frame. Flash is single-line,
