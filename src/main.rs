@@ -148,13 +148,18 @@ fn main() -> Result<()> {
 }
 
 fn print_usage() {
-    println!("usage: tuxemdo [FILE]                 launch the TUI");
+    println!("usage: tuxemdo [FILE]                 launch the TUI on one file");
+    println!("       tuxemdo --root [DIR]           tree mode: every todo.md under DIR");
     println!("       tuxemdo <command> [args]       run a one-shot command");
     println!("       tuxemdo update");
     println!();
     println!("Without FILE or a command, opens ./todo.md if present; otherwise");
     println!("prompts to create ./todo.md here or open a sample todo.md, in");
     println!("the interactive TUI.");
+    println!();
+    println!("Tree mode (`--root [DIR]`, default DIR=.) aggregates every todo.md");
+    println!("in the directory tree into one view; each task is tagged with its");
+    println!("source area, and edits/completions are written back to its own file.");
     println!();
     println!("Inside the TUI, press `s` to expose a phone-friendly capture");
     println!("endpoint on your LAN and show a QR code for it. Captures land");
