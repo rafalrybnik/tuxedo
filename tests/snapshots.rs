@@ -548,5 +548,16 @@ fn tree_mode_groups_tasks_under_indented_directory_headers() {
         "subfolder header should indent deeper than its parent:\n{text}"
     );
 
+    // Parent (root) tasks render ABOVE nested ones.
+    let row_of = |needle: &str| -> usize {
+        text.lines()
+            .position(|l| l.contains(needle))
+            .unwrap_or_else(|| panic!("no line contains {needle:?}:\n{text}"))
+    };
+    assert!(
+        row_of("top task") < row_of("ship it"),
+        "root task should appear above the nested task:\n{text}"
+    );
+
     let _ = std::fs::remove_dir_all(&root);
 }

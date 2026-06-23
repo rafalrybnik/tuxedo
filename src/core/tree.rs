@@ -41,12 +41,17 @@ impl TreeStore {
     pub fn open(root: &Path, today: String) -> std::io::Result<Self> {
         let mut files = Vec::new();
         collect_todo_files(root, &mut files)?;
-        files.sort();
 
         let root_todo = root.join(TODO_FILENAME);
         if !files.contains(&root_todo) {
-            files.insert(0, root_todo);
+            files.push(root_todo);
         }
+
+        // Pre-order: a directory's own todo.md must sort before its
+        // subdirectories' files, so parent (and root) tasks render above
+        // nested ones. Sorting by parent directory does exactly that — a
+        // prefix path compares as less, and siblings stay alphabetical.
+        files.sort_by(|a, b| a.parent().cmp(&b.parent()));
 
         let mut stores = Vec::with_capacity(files.len());
         for file in files {
