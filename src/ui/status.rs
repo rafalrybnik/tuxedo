@@ -27,6 +27,7 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
         Mode::PickSavedFilter => "PICK FILTER".into(),
         Mode::PromptSaveFilter => "SAVE FILTER".into(),
         Mode::CommandPalette => "COMMAND".into(),
+        Mode::Jump => "JUMP".into(),
         Mode::Share => "SHARE".into(),
         Mode::PickTheme => "PICK THEME".into(),
         Mode::Welcome => "WELCOME".into(),

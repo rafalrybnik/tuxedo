@@ -34,6 +34,8 @@ pub enum Mode {
     PickSavedFilter,  // j/k cycles through saved searches to apply
     PromptSaveFilter, // text input → name the current search and save it
     CommandPalette,
+    /// Fuzzy finder that jumps the cursor to a task or folder.
+    Jump,
     /// QR + URL overlay for the in-TUI capture server. Any key
     /// dismisses; press `s` again to re-open without rebinding (the
     /// server stays running once started).

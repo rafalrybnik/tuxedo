@@ -15,6 +15,7 @@ mod chord;
 mod draft;
 mod draft_overlay;
 mod flash;
+pub mod jump;
 mod mutations;
 pub mod palette;
 mod picker;
@@ -39,6 +40,7 @@ pub use draft_overlay::{
     format_rec_value, recurrence_next_preview,
 };
 pub use flash::Flash;
+pub use jump::{JumpCandidate, JumpState};
 pub use palette::CommandPaletteState;
 pub use prefs::{Layout, Prefs};
 pub use selection::Selection;
@@ -105,6 +107,7 @@ pub struct App {
     /// meaningful while `Mode::PickSavedFilter`; re-seeded on each open.
     saved_pick_idx: usize,
     pub command_palette: CommandPaletteState,
+    pub jump: JumpState,
     /// Vertical scroll offset (rows from the top of the line list) for each
     /// view, keyed by `View::idx()`. Updated at render time via `Cell` so the
     /// renderer can keep the cursor row visible without taking `&mut self`.
@@ -179,6 +182,7 @@ impl App {
             saved_pick_restore: None,
             saved_pick_idx: 0,
             command_palette: CommandPaletteState::default(),
+            jump: JumpState::default(),
             view_scroll: [Cell::new(0), Cell::new(0)],
             share: None,
             theme_pick_orig: 0,
@@ -336,8 +340,43 @@ impl App {
     pub fn effective_mode(&self) -> Mode {
         match self.mode {
             Mode::CommandPalette => self.command_palette.prior().unwrap_or(self.mode),
+            Mode::Jump => self.jump.prior_mode(),
             m => m,
         }
+    }
+
+    /// Build fuzzy-jump targets from the current visible list: one per task
+    /// (matched by its body, prefixed with its area in tree mode) plus one per
+    /// distinct area/folder (jumping to that folder's first visible task).
+    pub fn build_jump_candidates(&self) -> Vec<JumpCandidate> {
+        let tree = self.is_tree_mode();
+        let tasks = self.store.tasks();
+        let mut out: Vec<JumpCandidate> = Vec::new();
+        let mut seen_areas: Vec<String> = Vec::new();
+        for (i, &abs) in self.visible_indices().iter().enumerate() {
+            let Some(task) = tasks.get(abs) else { continue };
+            let area = if tree {
+                self.task_area_components(abs).join("/")
+            } else {
+                String::new()
+            };
+            if tree && !area.is_empty() && !seen_areas.iter().any(|a| a == &area) {
+                seen_areas.push(area.clone());
+                out.push(JumpCandidate {
+                    target: i,
+                    label: format!("{area}/"),
+                    area: String::new(),
+                    is_area: true,
+                });
+            }
+            out.push(JumpCandidate {
+                target: i,
+                label: crate::todo::body_after_priority(&task.raw).to_string(),
+                area,
+                is_area: false,
+            });
+        }
+        out
     }
 
     pub fn sort_label(&self) -> &'static str {

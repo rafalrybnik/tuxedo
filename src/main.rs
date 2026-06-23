@@ -298,6 +298,7 @@ fn handle_key(app: &mut App, key: KeyEvent, keybinds: &KeyBindings) {
         Mode::PickProject | Mode::PickContext | Mode::PickSavedFilter => handle_pick(app, key),
         Mode::PickTheme => handle_pick_theme(app, key),
         Mode::CommandPalette => handle_command_palette(app, key),
+        Mode::Jump => handle_jump(app, key),
         Mode::Share => handle_share(app, key),
         Mode::Welcome => handle_welcome(app, key),
         Mode::Normal | Mode::Visual => handle_normal(app, key, keybinds),
@@ -740,6 +741,56 @@ fn handle_command_palette(app: &mut App, key: KeyEvent) {
     }
 }
 
+fn handle_jump(app: &mut App, key: KeyEvent) {
+    let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
+    match key.code {
+        KeyCode::Esc => {
+            app.mode = app.jump.take_prior();
+            app.draft_clear();
+            return;
+        }
+        KeyCode::Enter => {
+            app.mode = app.jump.take_prior();
+            let query = app.draft.text().to_string();
+            app.draft_clear();
+            // A purely numeric query is a vim-style 1-based row jump; otherwise
+            // jump to the highlighted fuzzy hit.
+            let target = if !query.is_empty() && query.chars().all(|c| c.is_ascii_digit()) {
+                query.parse::<usize>().ok().map(|n| n.saturating_sub(1))
+            } else {
+                app.jump.current_target()
+            };
+            if let Some(t) = target {
+                let len = app.visible_indices().len();
+                if len > 0 {
+                    app.cursor = t.min(len - 1);
+                }
+            }
+            return;
+        }
+        KeyCode::Down => {
+            app.jump.step(1);
+            return;
+        }
+        KeyCode::Up => {
+            app.jump.step(-1);
+            return;
+        }
+        KeyCode::Char('n') if ctrl => {
+            app.jump.step(1);
+            return;
+        }
+        KeyCode::Char('p') if ctrl => {
+            app.jump.step(-1);
+            return;
+        }
+        _ => {}
+    }
+    if apply_to_draft(app, key) == DraftEffect::TextChanged {
+        app.jump.refresh(app.draft.text());
+    }
+}
+
 fn handle_autocomplete_keys(app: &mut App, key: KeyEvent) -> bool {
     let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
     match key.code {
@@ -828,6 +879,7 @@ fn resolve_normal_key(app: &mut App, key: KeyEvent, keybinds: &KeyBindings) -> O
             KeyCode::Char('d') => Some(Action::HalfPageDown),
             KeyCode::Char('u') => Some(Action::HalfPageUp),
             KeyCode::Char('p') => Some(Action::OpenCommandPalette),
+            KeyCode::Char('g') => Some(Action::OpenJump),
             _ => None,
         };
     }
@@ -1024,6 +1076,13 @@ fn apply_action(app: &mut App, action: Action) {
             let prior = app.mode;
             app.command_palette.open(prior);
             app.mode = Mode::CommandPalette;
+            app.draft_clear();
+        }
+        Action::OpenJump => {
+            let prior = app.mode;
+            let candidates = app.build_jump_candidates();
+            app.jump.open(prior, candidates);
+            app.mode = Mode::Jump;
             app.draft_clear();
         }
         Action::Undo => app.undo(),

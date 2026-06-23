@@ -596,3 +596,19 @@ fn nested_subtasks_render_more_indented_than_parent() {
     );
     let _ = std::fs::remove_file(&path);
 }
+
+#[test]
+fn jump_overlay_lists_tasks_and_filters() {
+    let mut app = make_app();
+    // Open the fuzzy jump over the current visible list.
+    let candidates = app.build_jump_candidates();
+    app.jump.open(Mode::Normal, candidates);
+    app.mode = Mode::Jump;
+
+    let text = buffer_to_text(&render(&app));
+    assert!(text.contains("jump"), "jump title missing:\n{text}");
+    assert!(
+        text.to_lowercase().contains("dentist"),
+        "a sample task should be listed:\n{text}"
+    );
+}
