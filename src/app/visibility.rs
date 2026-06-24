@@ -13,6 +13,8 @@ pub enum TreeRow {
         depth: usize,
         name: String,
         collapsed: bool,
+        /// Full area path (rel to the scan root), the collapse key.
+        path: PathBuf,
     },
     Task {
         /// Index into `visible_cache`.
@@ -133,6 +135,7 @@ impl App {
                     depth: d,
                     name: comps[d].clone(),
                     collapsed,
+                    path,
                 });
                 if collapsed {
                     skip_under = Some(comps[..=d].to_vec());
@@ -158,23 +161,31 @@ impl App {
         &self.tree_rows
     }
 
-    /// Collapse (or expand) the directory of the task under the cursor. Root
-    /// tasks have no directory to collapse.
+    /// Collapse (or expand) the directory under the cursor — either a folder
+    /// header directly, or the folder of the task under the cursor. Afterwards
+    /// the cursor rests on that folder's header so it's easy to re-toggle.
     pub fn toggle_collapse_current(&mut self) {
         if !self.is_tree_mode() {
             return;
         }
-        let Some(abs) = self.cur_abs() else { return };
-        let area = self.store.area(abs);
-        if area.as_os_str().is_empty() {
-            self.flash("root tasks have no folder to collapse");
+        let path = match self.tree_rows.get(self.cursor) {
+            Some(TreeRow::Header { path, .. }) => Some(path.clone()),
+            Some(TreeRow::Task { vis, .. }) => self
+                .visible_cache
+                .get(*vis)
+                .map(|&abs| self.store.area(abs))
+                .filter(|a| !a.as_os_str().is_empty()),
+            None => None,
+        };
+        let Some(path) = path else {
+            self.flash("nothing to collapse here");
             return;
-        }
-        if !self.collapsed.remove(&area) {
-            self.collapsed.insert(area);
+        };
+        if !self.collapsed.remove(&path) {
+            self.collapsed.insert(path.clone());
         }
         self.recompute_visible();
-        self.clamp_cursor();
+        self.focus_header(&path);
     }
 
     /// Expand every collapsed directory.
@@ -211,12 +222,31 @@ impl App {
         self.visible_groups = groups;
     }
 
+    /// Number of navigable rows: tree-mode rows (headers + tasks) in tree mode,
+    /// otherwise just the visible tasks.
+    pub fn row_count(&self) -> usize {
+        if self.is_tree_mode() {
+            self.tree_rows.len()
+        } else {
+            self.visible_cache.len()
+        }
+    }
+
+    /// Store index of the task under the cursor, or `None` when the cursor is
+    /// on a directory header (tree mode).
     pub fn cur_abs(&self) -> Option<usize> {
-        self.visible_cache.get(self.cursor).copied()
+        if self.is_tree_mode() {
+            match self.tree_rows.get(self.cursor)? {
+                TreeRow::Task { vis, .. } => self.visible_cache.get(*vis).copied(),
+                TreeRow::Header { .. } => None,
+            }
+        } else {
+            self.visible_cache.get(self.cursor).copied()
+        }
     }
 
     pub fn clamp_cursor(&mut self) {
-        let len = self.visible_cache.len();
+        let len = self.row_count();
         if len == 0 {
             self.cursor = 0;
         } else if self.cursor >= len {
@@ -224,10 +254,31 @@ impl App {
         }
     }
 
-    /// Move the cursor to wherever `abs` lives in the current visible list.
-    /// Falls back to clamping if `abs` was filtered out.
+    /// Move the cursor to wherever `abs` lives in the current list (the task's
+    /// row in tree mode). Falls back to clamping if `abs` was filtered out.
     pub(super) fn follow_cursor(&mut self, abs: usize) {
-        if let Some(pos) = self.visible_cache.iter().position(|&i| i == abs) {
+        if self.is_tree_mode() {
+            let pos = self.tree_rows.iter().position(|r| {
+                matches!(r, TreeRow::Task { vis, .. } if self.visible_cache.get(*vis) == Some(&abs))
+            });
+            match pos {
+                Some(p) => self.cursor = p,
+                None => self.clamp_cursor(),
+            }
+        } else if let Some(pos) = self.visible_cache.iter().position(|&i| i == abs) {
+            self.cursor = pos;
+        } else {
+            self.clamp_cursor();
+        }
+    }
+
+    /// Place the cursor on the header row for `path` (after a collapse toggle).
+    fn focus_header(&mut self, path: &std::path::Path) {
+        if let Some(pos) = self
+            .tree_rows
+            .iter()
+            .position(|r| matches!(r, TreeRow::Header { path: p, .. } if p == path))
+        {
             self.cursor = pos;
         } else {
             self.clamp_cursor();

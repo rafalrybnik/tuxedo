@@ -26,19 +26,28 @@ fn area_header<'a>(theme: &Theme, name: &str, indent: usize) -> Line<'a> {
 }
 
 /// A collapsible subfolder header: `<indent>▾ name/` (expanded) or `▸` when
-/// collapsed.
-fn area_header_glyph<'a>(theme: &Theme, name: &str, indent: usize, collapsed: bool) -> Line<'a> {
+/// collapsed. `selected` tints the whole row with the cursor background.
+fn area_header_glyph<'a>(
+    theme: &Theme,
+    name: &str,
+    indent: usize,
+    collapsed: bool,
+    selected: bool,
+) -> Line<'a> {
     let glyph = if collapsed { "▸ " } else { "▾ " };
+    let row_bg = if selected { theme.cursor } else { theme.bg };
     Line::from(vec![
-        Span::raw(" ".repeat(indent)),
-        Span::styled(glyph, Style::default().fg(theme.dim)),
+        Span::styled(" ".repeat(indent), Style::default().bg(row_bg)),
+        Span::styled(glyph, Style::default().fg(theme.dim).bg(row_bg)),
         Span::styled(
             format!("{name}/"),
             Style::default()
                 .fg(theme.accent)
+                .bg(row_bg)
                 .add_modifier(Modifier::BOLD),
         ),
     ])
+    .style(Style::default().bg(row_bg))
 }
 
 pub fn render(frame: &mut Frame, area: Rect, app: &App) {
@@ -79,7 +88,14 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
     let mut lines: Vec<Line> = Vec::new();
     let mut cursor_line: Option<usize> = None;
 
-    if visible.is_empty() {
+    // In tree mode the layout has rows even when every task is collapsed away
+    // (the folder headers remain), so emptiness is measured on the rows there.
+    let nothing = if tree {
+        app.tree_rows().is_empty()
+    } else {
+        visible.is_empty()
+    };
+    if nothing {
         lines.push(Line::from(Span::styled(
             "   no tasks match".to_string(),
             Style::default().fg(theme.dim),
@@ -89,17 +105,24 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
         // layout. The scan-root folder is the top header; each subfolder nests
         // one indent level deeper, with tasks under their folder.
         lines.push(area_header(theme, &app.tree_root_label(), 0));
-        for row in app.tree_rows() {
+        let active = app.mode != Mode::Help && app.mode != Mode::Settings;
+        for (row_idx, row) in app.tree_rows().iter().enumerate() {
+            let selected = row_idx == app.cursor;
+            if selected {
+                cursor_line = Some(lines.len());
+            }
             match row {
                 TreeRow::Header {
                     depth,
                     name,
                     collapsed,
+                    ..
                 } => lines.push(area_header_glyph(
                     theme,
                     name,
                     (depth + 1) * INDENT,
                     *collapsed,
+                    selected && active,
                 )),
                 TreeRow::Task { vis, depth } => {
                     let abs = visible[*vis];
@@ -107,9 +130,7 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
                     let indent = (depth + 1) * INDENT + task.indent_cols();
                     let opts = task_row::RowOpts {
                         idx_label: *vis,
-                        cursor: *vis == app.cursor
-                            && app.mode != Mode::Help
-                            && app.mode != Mode::Settings,
+                        cursor: selected && active,
                         multi_mode: app.effective_mode() == Mode::Visual,
                         multi_checked: app.selection.is_selected(abs),
                         selected: app.selection.is_selected(abs),
@@ -123,9 +144,6 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
                         hidden_keys: &app.prefs.hidden_keys,
                         area: None,
                     };
-                    if *vis == app.cursor {
-                        cursor_line = Some(lines.len());
-                    }
                     let avail = width.saturating_sub(indent).max(8);
                     let mut wrapped = task_row::build_wrapped_lines(task, opts, theme, avail);
                     let pad = " ".repeat(indent);

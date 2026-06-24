@@ -357,34 +357,58 @@ impl App {
     /// (matched by its body, prefixed with its area in tree mode) plus one per
     /// distinct area/folder (jumping to that folder's first visible task).
     pub fn build_jump_candidates(&self) -> Vec<JumpCandidate> {
-        let tree = self.is_tree_mode();
         let tasks = self.store.tasks();
         let mut out: Vec<JumpCandidate> = Vec::new();
-        let mut seen_areas: Vec<String> = Vec::new();
-        for (i, &abs) in self.visible_indices().iter().enumerate() {
-            let Some(task) = tasks.get(abs) else { continue };
-            let area = if tree {
-                self.task_area_components(abs).join("/")
-            } else {
-                String::new()
-            };
-            if tree && !area.is_empty() && !seen_areas.iter().any(|a| a == &area) {
-                seen_areas.push(area.clone());
+        if self.is_tree_mode() {
+            // Targets are row indices (the cursor navigates tree rows): every
+            // folder header and every visible task is a jump destination.
+            for (row, r) in self.tree_rows.iter().enumerate() {
+                match r {
+                    TreeRow::Header { name, .. } => out.push(JumpCandidate {
+                        target: row,
+                        label: format!("{name}/"),
+                        area: String::new(),
+                        is_area: true,
+                    }),
+                    TreeRow::Task { vis, .. } => {
+                        let Some(&abs) = self.visible_cache.get(*vis) else {
+                            continue;
+                        };
+                        let Some(task) = tasks.get(abs) else { continue };
+                        out.push(JumpCandidate {
+                            target: row,
+                            label: crate::todo::body_after_priority(&task.raw).to_string(),
+                            area: self.task_area_components(abs).join("/"),
+                            is_area: false,
+                        });
+                    }
+                }
+            }
+        } else {
+            // Single-file: targets are visible indices (= the cursor index).
+            for (i, &abs) in self.visible_indices().iter().enumerate() {
+                let Some(task) = tasks.get(abs) else { continue };
                 out.push(JumpCandidate {
                     target: i,
-                    label: format!("{area}/"),
+                    label: crate::todo::body_after_priority(&task.raw).to_string(),
                     area: String::new(),
-                    is_area: true,
+                    is_area: false,
                 });
             }
-            out.push(JumpCandidate {
-                target: i,
-                label: crate::todo::body_after_priority(&task.raw).to_string(),
-                area,
-                is_area: false,
-            });
         }
         out
+    }
+
+    /// Row index (in the active navigation) of the task numbered `vis` (0-based
+    /// visible index), used by the jump finder's numeric row jump.
+    pub fn row_of_visible(&self, vis: usize) -> Option<usize> {
+        if self.is_tree_mode() {
+            self.tree_rows
+                .iter()
+                .position(|r| matches!(r, TreeRow::Task { vis: v, .. } if *v == vis))
+        } else {
+            (vis < self.visible_cache.len()).then_some(vis)
+        }
     }
 
     pub fn sort_label(&self) -> &'static str {

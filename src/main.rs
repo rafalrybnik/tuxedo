@@ -5,7 +5,11 @@ use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result};
 use ratatui::DefaultTerminal;
-use ratatui::crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use ratatui::crossterm::event::{
+    self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEvent, KeyEventKind,
+    KeyModifiers, MouseEventKind,
+};
+use ratatui::crossterm::execute;
 
 use std::io::Write;
 
@@ -132,12 +136,16 @@ fn main() -> Result<()> {
     }
 
     let terminal = ratatui::init();
+    // Capture the mouse so the wheel scrolls the list. (Note: while captured,
+    // text selection in the terminal needs the usual Shift/Option modifier.)
+    let _ = execute!(io::stdout(), EnableMouseCapture);
     // Give the window/tab a consistent `tuxemdo <path>` title across terminals
     // and operating systems, shortening long paths to fit a fixed budget.
     let home = std::env::var_os("HOME").map(std::path::PathBuf::from);
     let title = ui::title::terminal_title(&path, home.as_deref(), ui::title::DEFAULT_BUDGET);
     let _ = crossterm::execute!(io::stdout(), crossterm::terminal::SetTitle(title));
     let result = run(terminal, &mut app_state, &keybinds);
+    let _ = execute!(io::stdout(), DisableMouseCapture);
     ratatui::restore();
     // Clear the title on exit so the shell retitles on its next prompt rather
     // than leaving `tuxemdo …` behind.
@@ -249,6 +257,17 @@ fn run(mut terminal: DefaultTerminal, app: &mut App, keybinds: &KeyBindings) -> 
                 Event::Resize(_, _) => {
                     dirty = true;
                 }
+                Event::Mouse(me) => match me.kind {
+                    MouseEventKind::ScrollDown => {
+                        handle_scroll(app, true);
+                        dirty = true;
+                    }
+                    MouseEventKind::ScrollUp => {
+                        handle_scroll(app, false);
+                        dirty = true;
+                    }
+                    _ => {}
+                },
                 _ => {}
             }
         } else if !app.check_external_changes() {
@@ -741,6 +760,24 @@ fn handle_command_palette(app: &mut App, key: KeyEvent) {
     }
 }
 
+/// Mouse-wheel scroll: move the list cursor a few rows (only in the list
+/// modes; overlays handle their own keys).
+fn handle_scroll(app: &mut App, down: bool) {
+    if !matches!(app.mode, Mode::Normal | Mode::Visual) {
+        return;
+    }
+    let len = app.row_count();
+    if len == 0 {
+        return;
+    }
+    const STEP: usize = 3;
+    app.cursor = if down {
+        (app.cursor + STEP).min(len - 1)
+    } else {
+        app.cursor.saturating_sub(STEP)
+    };
+}
+
 fn handle_jump(app: &mut App, key: KeyEvent) {
     let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
     match key.code {
@@ -756,12 +793,15 @@ fn handle_jump(app: &mut App, key: KeyEvent) {
             // A purely numeric query is a vim-style 1-based row jump; otherwise
             // jump to the highlighted fuzzy hit.
             let target = if !query.is_empty() && query.chars().all(|c| c.is_ascii_digit()) {
-                query.parse::<usize>().ok().map(|n| n.saturating_sub(1))
+                query
+                    .parse::<usize>()
+                    .ok()
+                    .and_then(|n| app.row_of_visible(n.saturating_sub(1)))
             } else {
                 app.jump.current_target()
             };
             if let Some(t) = target {
-                let len = app.visible_indices().len();
+                let len = app.row_count();
                 if len > 0 {
                     app.cursor = t.min(len - 1);
                 }
@@ -1003,7 +1043,7 @@ fn apply_action(app: &mut App, action: Action) {
             _ => {}
         }
     }
-    let len = app.visible_indices().len();
+    let len = app.row_count();
     match action {
         Action::Quit => app.should_quit = true,
         Action::CursorDown => {

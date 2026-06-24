@@ -22,7 +22,7 @@ use ratatui::style::{Color, Modifier};
 
 use tuxemdo::app::{
     App, BuilderField, CalendarState, CalendarTarget, Density, DraftOverlay, Mode,
-    PriorityChooserState, RecurrenceBuilderState, SlashMenuState, View,
+    PriorityChooserState, RecurrenceBuilderState, SlashMenuState, TreeRow, View,
 };
 use tuxemdo::config::Config;
 use tuxemdo::recurrence::RecUnit;
@@ -629,13 +629,13 @@ fn collapsing_a_folder_hides_its_tasks_but_keeps_its_header() {
         "task should start visible"
     );
 
-    // Put the cursor on the nested task and collapse its folder.
+    // Put the cursor on the nested task's row and collapse its folder.
     let vis = app
         .visible_indices()
         .iter()
         .position(|&abs| app.tasks()[abs].raw.contains("ship it"))
         .expect("find nested task");
-    app.cursor = vis;
+    app.cursor = app.row_of_visible(vis).expect("task row");
     app.toggle_collapse_current();
 
     let after = buffer_to_text(&render(&app));
@@ -654,6 +654,48 @@ fn collapsing_a_folder_hides_its_tasks_but_keeps_its_header() {
     assert!(
         buffer_to_text(&render(&app)).contains("ship it"),
         "expand_all should restore it"
+    );
+
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
+fn collapsing_an_intermediate_folder_without_its_own_todo_md() {
+    // `projects/` has no todo.md of its own, only a subfolder that does. The
+    // cursor must be able to land on the `projects/` header and collapse it.
+    let root = std::env::temp_dir().join(format!("tuxemdo-midcollapse-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(root.join("projects/web")).expect("mk dirs");
+    std::fs::write(root.join("projects/web/todo.md"), "- [ ] deep task +x\n").expect("web todo");
+    let mut app = App::new_tree(root.clone(), "2026-05-06".to_string(), Config::default())
+        .expect("open tree");
+    app.prefs.density = Density::Compact;
+
+    let row = app
+        .tree_rows()
+        .iter()
+        .position(|r| matches!(r, TreeRow::Header { name, .. } if name == "projects"))
+        .expect("projects header row");
+    app.cursor = row;
+    assert!(
+        app.cur_abs().is_none(),
+        "cursor on a header maps to no task"
+    );
+
+    app.toggle_collapse_current();
+    let after = buffer_to_text(&render(&app));
+    assert!(
+        !after.contains("deep task"),
+        "deep task should be hidden:\n{after}"
+    );
+    assert!(
+        after.contains("projects/"),
+        "collapsed header should remain:\n{after}"
+    );
+    assert!(after.contains('▸'), "collapsed glyph should show:\n{after}");
+    assert!(
+        !after.contains("web/"),
+        "child folder header should be hidden too:\n{after}"
     );
 
     let _ = std::fs::remove_dir_all(&root);
