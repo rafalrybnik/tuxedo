@@ -358,10 +358,8 @@ impl App {
             }
             Some(TreeRow::Header {
                 collapsed: false, ..
-            }) => {
-                if self.cursor + 1 < self.tree_rows.len() {
-                    self.cursor += 1;
-                }
+            }) if self.cursor + 1 < self.tree_rows.len() => {
+                self.cursor += 1;
             }
             _ => {}
         }
