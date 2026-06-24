@@ -927,6 +927,8 @@ fn resolve_normal_key(app: &mut App, key: KeyEvent, keybinds: &KeyBindings) -> O
         KeyCode::Char('q') => Action::Quit,
         KeyCode::Char('j') | KeyCode::Down => Action::CursorDown,
         KeyCode::Char('k') | KeyCode::Up => Action::CursorUp,
+        KeyCode::Left => Action::TreeLeft,
+        KeyCode::Right => Action::TreeRight,
         KeyCode::Char('G') => Action::CursorBottom,
         // First 'g' arms the chord; second 'g' fires CursorTop.
         KeyCode::Char('g') if app.chord.toggle('g') => Action::CursorTop,
@@ -1129,6 +1131,8 @@ fn apply_action(app: &mut App, action: Action) {
         }
         Action::ToggleCollapse => app.toggle_collapse_current(),
         Action::ExpandAll => app.expand_all(),
+        Action::TreeLeft => app.tree_left(),
+        Action::TreeRight => app.tree_right(),
         Action::Undo => app.undo(),
         Action::ToggleVisual => {
             app.mode = if app.mode == Mode::Visual {

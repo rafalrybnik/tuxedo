@@ -700,3 +700,50 @@ fn collapsing_an_intermediate_folder_without_its_own_todo_md() {
 
     let _ = std::fs::remove_dir_all(&root);
 }
+
+#[test]
+fn finder_arrows_navigate_collapse_and_expand() {
+    let root = std::env::temp_dir().join(format!("tuxemdo-arrows-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(root.join("projects/web")).expect("mk dirs");
+    std::fs::write(root.join("projects/web/todo.md"), "- [ ] deep task +x\n").expect("web todo");
+    let mut app = App::new_tree(root.clone(), "2026-05-06".to_string(), Config::default())
+        .expect("open tree");
+    app.prefs.density = Density::Compact;
+
+    let name_at = |a: &App| match a.tree_rows().get(a.cursor) {
+        Some(TreeRow::Header {
+            name, collapsed, ..
+        }) => Some((name.clone(), *collapsed)),
+        _ => None,
+    };
+
+    // Cursor on the task → Left jumps to its folder header (web, expanded).
+    let task_row = app
+        .tree_rows()
+        .iter()
+        .position(|r| matches!(r, TreeRow::Task { .. }))
+        .expect("task row");
+    app.cursor = task_row;
+    app.tree_left();
+    assert_eq!(name_at(&app), Some(("web".to_string(), false)));
+
+    // Left again collapses the expanded folder.
+    app.tree_left();
+    assert_eq!(name_at(&app), Some(("web".to_string(), true)));
+    assert!(!buffer_to_text(&render(&app)).contains("deep task"));
+
+    // Left on a collapsed folder steps up to its parent.
+    app.tree_left();
+    assert_eq!(name_at(&app), Some(("projects".to_string(), false)));
+
+    // Right on an expanded folder steps into its first child (web header).
+    app.tree_right();
+    assert_eq!(name_at(&app), Some(("web".to_string(), true)));
+
+    // Right on the collapsed folder expands it again.
+    app.tree_right();
+    assert!(buffer_to_text(&render(&app)).contains("deep task"));
+
+    let _ = std::fs::remove_dir_all(&root);
+}

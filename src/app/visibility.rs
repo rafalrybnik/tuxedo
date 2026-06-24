@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use super::App;
 use super::types::{Sort, View};
@@ -273,7 +273,7 @@ impl App {
     }
 
     /// Place the cursor on the header row for `path` (after a collapse toggle).
-    fn focus_header(&mut self, path: &std::path::Path) {
+    fn focus_header(&mut self, path: &Path) {
         if let Some(pos) = self
             .tree_rows
             .iter()
@@ -282,6 +282,88 @@ impl App {
             self.cursor = pos;
         } else {
             self.clamp_cursor();
+        }
+    }
+
+    fn cursor_to_header(&mut self, path: &Path) {
+        if let Some(pos) = self
+            .tree_rows
+            .iter()
+            .position(|r| matches!(r, TreeRow::Header { path: p, .. } if p == path))
+        {
+            self.cursor = pos;
+        }
+    }
+
+    /// Finder-style Left: collapse an expanded folder; from a collapsed folder
+    /// go to its parent; from a task go to its containing folder header.
+    pub fn tree_left(&mut self) {
+        if !self.is_tree_mode() {
+            return;
+        }
+        enum Act {
+            Collapse(PathBuf),
+            ToParent(Option<PathBuf>),
+        }
+        let act = match self.tree_rows.get(self.cursor) {
+            Some(TreeRow::Header {
+                collapsed: false,
+                path,
+                ..
+            }) => Act::Collapse(path.clone()),
+            Some(TreeRow::Header {
+                collapsed: true,
+                path,
+                ..
+            }) => Act::ToParent(
+                path.parent()
+                    .filter(|p| !p.as_os_str().is_empty())
+                    .map(Path::to_path_buf),
+            ),
+            Some(TreeRow::Task { vis, .. }) => Act::ToParent(
+                self.visible_cache
+                    .get(*vis)
+                    .map(|&abs| self.store.area(abs))
+                    .filter(|a| !a.as_os_str().is_empty()),
+            ),
+            None => return,
+        };
+        match act {
+            Act::Collapse(p) => {
+                self.collapsed.insert(p.clone());
+                self.recompute_visible();
+                self.focus_header(&p);
+            }
+            Act::ToParent(Some(p)) => self.cursor_to_header(&p),
+            Act::ToParent(None) => {}
+        }
+    }
+
+    /// Finder-style Right: expand a collapsed folder; on an expanded folder
+    /// step into its first child row. No-op on a task.
+    pub fn tree_right(&mut self) {
+        if !self.is_tree_mode() {
+            return;
+        }
+        match self.tree_rows.get(self.cursor) {
+            Some(TreeRow::Header {
+                collapsed: true,
+                path,
+                ..
+            }) => {
+                let p = path.clone();
+                self.collapsed.remove(&p);
+                self.recompute_visible();
+                self.focus_header(&p);
+            }
+            Some(TreeRow::Header {
+                collapsed: false, ..
+            }) => {
+                if self.cursor + 1 < self.tree_rows.len() {
+                    self.cursor += 1;
+                }
+            }
+            _ => {}
         }
     }
 }
